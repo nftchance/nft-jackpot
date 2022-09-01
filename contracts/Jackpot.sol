@@ -30,31 +30,132 @@ contract Jackpot is
         )
     { }
 
-    function getJackpot(uint256 _jackpotId)
+    function getJackpot(
+        uint256 _jackpotId
+    )
         public
         view
         returns (JackpotSchema jackpotSchema)
-    {
-        jackpots = jackpots[_jackpotId];
+    { }
+
+    function getEntry(
+          uint256 _jackpotId
+        , uint256 _entryId
+    ) 
+        public 
+        view
+        returns (JackpotEntrySchema entrySchema) 
+    { }
+
+    function openJackpot(
+          JackpotConstantSchema _constants
+        , JackpotQualifierSchema[] calldata _qualifiers
+        , uint256 _cancelTime
+    ) public payable { 
+        _openJackpot(
+              _constants
+            , _qualifiers
+            , _cancelTime
+        );
     }
 
-    function getJackpot() public { }
+    function abortJackpot(
+        uint256 _jackpotId
+    ) 
+        public 
+    { 
+        _abortJackpot(_jackpotId);
+    }
 
-    function getEntry() public { }
+    function fundJackpot(
+          uint256 _jackpotId
+        , CollateralSchema[] calldata _collateral
+    ) 
+        public 
+        payable 
+    {
+        _fundJackpot(_collateral);
+    }
 
-    function openJackpot() public payable { }
+    function openEntryEmpty(
+        uint256 _quantity
+    ) 
+        public
+        payable
+    {
+        _openEntryEmpty(_quantity);
+    }
 
-    function abortJackpot() public { }
+    function openEntryBacked(
+          CollateralSchema[] calldata _collateral
+        , uint256 _quantity
+    ) 
+        public
+        payable
+    { 
+        _openEntryBacked(
+              _collateral
+            , _quantity
+        );
+    }
 
-    function fundJackpot() public payable { }
+    function openEntrySignature(
+          bytes calldata signature
+        , uint256 _quantity
+    ) 
+        public
+    {
+        _openEntrySignature(
+              signature
+            , _quantity
+        );
+    }
 
-    function openEntry() public { }
+    function abortEntry(
+          uint256 _jackpotId
+        , uint256 _entryId
+    ) 
+        public 
+    {
+        _abortEntry(
+              _jackpotId
+            , _entryId
+        );
+    }
 
-    function abortEntry() public { }
+    function drawJackpot(
+        uint256 _jackpotId
+    ) 
+        public 
+    { 
+        _drawJackpot(_jackpotId);
+    }
 
-    function drawJackpot() public { }
+    function terminateJackpot(
+        uint256 _jackpotId
+    ) 
+        public 
+    {
+        _terminateJackpot(_jackpotId);
+    }
 
-    function claimPrize() public { }
+    function claimJackpot(
+          uint256 _jackpotId
+        , uint256 _entryId
+    ) public { 
+        _claimJackpot(
+              _jackpotId
+            , _entryId
+        );
+    }
 
-    function claimRefund() public { }
+    function claimRefund(
+          uint256 _jackpotId
+        , uint256 _entryId
+    ) public { 
+        _claimRefund(
+              _jackpotId
+            , _entryId
+        );
+    }
 }
