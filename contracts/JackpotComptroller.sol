@@ -249,7 +249,7 @@ contract JackpotComptroller is
         emit SetWinnerTriggered(_raffleId, raffle.amountRaised);
     }
 
-        /// @param _raffleId Id of the raffle
+    /// @param _raffleId Id of the raffle
     /// @dev The operator can cancel the raffle. The NFT is sent back to the seller
     /// The raised funds are send to the destination wallet. The buyers will
     /// be refunded offchain in the metawin wallet
@@ -338,23 +338,6 @@ contract JackpotComptroller is
         raffle.amountRaised = 0;
     }
 
-    /// @param _raffleId Id of the raffle
-    /// @return array of entries of that particular raffle
-    function getEntries(uint256 _raffleId)
-        external
-        view
-        returns (address[] memory)
-    {
-        return raffles[_raffleId].entries;
-    }
-
-    function getClaimData(uint256 _raffleId, address _player)
-        external
-        view
-        returns (ClaimStruct memory)
-    {
-        return claimsData[keccak256(abi.encode(_player, _raffleId))];
-    }
 
     /// @dev this is the method that will be called by the smart contract to get a random number
     /// @param _id Id of the raffle
