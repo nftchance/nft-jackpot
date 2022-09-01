@@ -39,7 +39,7 @@ contract JackpotGreeks is
         /// @dev Enabling permisionsless and non-oracle running jackpot distribution.
         int256 endTime;
         /// @dev Adds support for falling returns as draw-time approaches.
-        int256 refundFactorDecay;
+        int256 refundDecayConstant;
     }
 
     struct JackpotQualifierSchema { 

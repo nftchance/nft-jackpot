@@ -55,35 +55,26 @@ contract Jackpot is
 
     }
 
-    
-    /// @param _desiredFundsInWeis the amount the seller would like to get from the raffle
-    /// @param _maxEntriesPerUser To avoid whales, the number of entries an user can have is limited
-    /// @param _collateralAddress The address of the NFT of the raffle
-    /// @param _collateralId The id of the NFT (ERC721)
-    /// @param _minimumFundsInWeis The mininum amount required for the raffle to set a winner
-    /// @notice Creates a raffle
-    /// @dev creates a raffle struct and push it to the raffles array. Some data is stored in the funding data structure
-    /// sends an event when finished
-    /// @return raffleId
-    function createRaffle(
-        uint256 _desiredFundsInWeis,
-        uint256 _maxEntriesPerUser,
-        address _collateralAddress,
-        uint256 _collateralId,
-        uint256 _minimumFundsInWeis,
-        PriceStructure[] calldata _prices,
-        uint256 _commissionInBasicPoints,
-        address _requiredNFT
-    ) external onlyRole(OPERATOR_ROLE) returns (uint256) {
-        _createJackpot(
-            _desiredFundsInWeis,
-            _maxEntriesPerUser,
-            _collateralAddress,
-            _collateralId,
-            _minimumFundsInWeis,
-            _prices,
-            _commissionInBasicPoints,
-            _requiredNFT
-        );
+    ////////////////////////// READ FUNCTIONS //////////////////////////
+
+    function getJackpot(uint256 _jackpotId)
+        public
+        view
+        returns (JackpotSchema jackpotSchema)
+    {
+        jackpots = jackpots[_jackpotId];
     }
+
+    ///////////////////////// WRITE FUNCTIONS //////////////////////////
+    function createJackpot() public payable { }
+
+    function cancelJackpot() public { }
+
+    function depositCollateral() public payable { }
+
+    function withdrawCollateral() public payable { }
+
+    function drawJackpot() public { }
+
+
 }

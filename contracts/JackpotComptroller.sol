@@ -14,9 +14,6 @@ contract JackpotComptroller is
     bytes32 internal keyHash; // chainlink
     uint256 internal fee; // fee paid in LINK to chainlink. (0.1 in Rinkeby, 2 in Mainnet)
 
-   
-
-
     constructor(
           address _coordinator
         , address _linkToken
@@ -40,7 +37,7 @@ contract JackpotComptroller is
     function _createNewJackpot(
           JackpotConstantSchema _constants
         , JackpotQualifierSchema[] calldata _qualifiers
-        , uint256 _cancellingDate
+        , uint256 _cancelTime
     )
         internal
         payable
@@ -59,7 +56,7 @@ contract JackpotComptroller is
             , qualifiers: _qualifiers
             , prizePool: prizePoolAddress
             , winner: 0
-            , cancelTime: 0
+            , cancelTime: _cancelTime
         });
 
         /// @dev Announce to the world!
