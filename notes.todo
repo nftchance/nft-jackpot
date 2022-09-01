@@ -1,0 +1,13 @@
+THINGS THAT ARE GOING TO BE FIXED:
+    ☐ it is so fucking expensive to buy an entry
+    ☐ the use of events is crazy
+    ☐ all nfts should be deposited into a pool contract
+    ☐ the re-use of a token should have a time decay
+    ☐ when a raffle is cancelled, there is a 30 day claiming window
+    ☐ the metawin implementation has a normalizedRandomNumber that is super fucked
+    ☐ gifting free entries should only be allowed in free pools
+    ☐ when someone has entered a raffle, they can withdraw before it starts for an inverse exponential curve.
+        -- will have to figure out how to inverse in solidity. i am pretty sure t11 was cracked one day and open sourced a inverse square root function that had an assembly-level inverse.
+    ☐ entry pricing curve -- fuck stating pricing
+        -- yoink paradigms activity driven dutch auction mechanism
+    ☐ 
