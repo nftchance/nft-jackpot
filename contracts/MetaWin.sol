@@ -1,9 +1,3 @@
-/**
- * This is a real contract that was launched by metawin.com/xyz. Not only does it have multiple exploits, but it was argued that they were not exploits and they chose to launch with an immutable, yet fucked up contract. This repository is a journey into a better permissionless and trustless lottery.
-
- I highly advise noting the very bad code and practices in this contract and moving on :)
- */
-
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.4;
 
@@ -233,7 +227,100 @@ contract Manager is AccessControl, ReentrancyGuard, VRFConsumerBase {
 
     //////////////////////////////////////////////
 
+    /// @param _desiredFundsInWeis the amount the seller would like to get from the raffle
+    /// @param _maxEntriesPerUser To avoid whales, the number of entries an user can have is limited
+    /// @param _collateralAddress The address of the NFT of the raffle
+    /// @param _collateralId The id of the NFT (ERC721)
+    /// @param _minimumFundsInWeis The mininum amount required for the raffle to set a winner
+    /// @notice Creates a raffle
+    /// @dev creates a raffle struct and push it to the raffles array. Some data is stored in the funding data structure
+    /// sends an event when finished
+    /// @return raffleId
+    function createRaffle(
+        uint256 _desiredFundsInWeis,
+        uint256 _maxEntriesPerUser,
+        address _collateralAddress,
+        uint256 _collateralId,
+        uint256 _minimumFundsInWeis,
+        PriceStructure[] calldata _prices,
+        uint256 _commissionInBasicPoints,
+        address _requiredNFT
+    ) external onlyRole(OPERATOR_ROLE) returns (uint256) {
+        require(_maxEntriesPerUser > 0, "maxEntries is 0");
+        require(_collateralAddress != address(0), "NFT is null");
+        require(_commissionInBasicPoints <= 5000, "commission too high");
 
+        address[] memory _entries = new address[](0);
+
+        RaffleStruct memory raffle = RaffleStruct({
+            status: STATUS.CREATED,
+            maxEntries: _maxEntriesPerUser,
+            collateralAddress: _collateralAddress,
+            collateralId: _collateralId,
+            winner: address(0),
+            randomNumber: 0,
+            amountRaised: 0,
+            entries: _entries,
+            seller: address(0),
+            platformPercentage: _commissionInBasicPoints,
+            requiredNFT: _requiredNFT,
+            entriesLength: 0,
+            cancellingDate: 0
+        });
+
+        raffles.push(raffle);
+
+        require(_prices.length > 0, "No prices");
+
+        for (uint256 i = 0; i < _prices.length; i++) {
+            require(_prices[i].numEntries > 0, "numEntries is 0");
+
+            PriceStructure memory p = PriceStructure({
+                id: _prices[i].id,
+                numEntries: _prices[i].numEntries,
+                price: _prices[i].price
+            });
+
+            prices[raffles.length - 1][i] = p;
+        }
+
+        fundingList[raffles.length - 1] = FundingStructure({
+            minimumFundsInWeis: _minimumFundsInWeis,
+            desiredFundsInWeis: _desiredFundsInWeis
+        });
+
+        emit RaffleCreated(
+            raffles.length - 1,
+            _collateralAddress,
+            _collateralId
+        );
+
+        return raffles.length - 1;
+    }
+
+    /* * Example of a price structure:
+1 ticket 0.02
+5 tickets 0.018 (10% discount)
+10 tickets 0.16  (20% discount)
+25 tickets 0.35  (30% discount) 
+50 tickets 0.6 (40% discount)
+*/
+    /// @param _idRaffle raffleId
+    /// @param _id Id of the price structure
+    /// @return the price structure of that particular Id + raffle
+    /// @dev Returns the price structure, used in the frontend
+    function getPriceStructForId(uint256 _idRaffle, uint256 _id)
+        internal
+        view
+        returns (PriceStructure memory)
+    {
+        for (uint256 i = 0; i < 5; i++) {
+            if (prices[_idRaffle][i].id == _id) {
+                return prices[_idRaffle][i];
+            }
+        }
+        return PriceStructure({id: 0, numEntries: 0, price: 0});
+    }
 
     /*
     Callable only by the owner of the NFT
@@ -408,8 +495,193 @@ contract Manager is AccessControl, ReentrancyGuard, VRFConsumerBase {
         );
     }
 
+    // can be called by the seller at every moment once enough funds has been raised
+    /// @param _raffleId Id of the raffle
+    /// @notice the seller of the nft, if the minimum amount has been reached, can call an early cashout, finishing the raffle
+    /// @dev it triggers Chainlink VRF1 consumer, and generates a random number that is normalized and checked that corresponds to a MW player
+    function earlyCashOut(uint256 _raffleId) external {
+        RaffleStruct storage raffle = raffles[_raffleId];
+        FundingStructure memory funding = fundingList[_raffleId];
 
+        require(raffle.seller == msg.sender, "Not the seller");
+        // Check if the raffle is already accepted
+        require(
+            raffle.status == STATUS.ACCEPTED,
+            "Raffle not in accepted status"
+        );
+        require(
+            raffle.amountRaised >= funding.minimumFundsInWeis,
+            "Not enough funds raised"
+        );
 
+        raffle.status = STATUS.EARLY_CASHOUT;
 
+        //    IVRFConsumerv1 randomNumber = IVRFConsumerv1(chainlinkContractAddress);
+        getRandomNumber(_raffleId, raffle.entries.length);
 
+        emit EarlyCashoutTriggered(_raffleId, raffle.amountRaised);
+    }
+
+    // helper method to get the winner address of a raffle
+    /// @param _raffleId Id of the raffle
+    /// @param _normalizedRandomNumber index of the array that contains the winner of the raffle. Generated by chainlink
+    /// @return the wallet that won the raffle (at the moment, as must be confirmed that is a member of the MW community)
+    function getWinnerAddressFromRandom(
+        uint256 _raffleId,
+        uint256 _normalizedRandomNumber
+    ) external view returns (address) {
+        return raffles[_raffleId].entries[_normalizedRandomNumber];
+    }
+
+    /// @param _raffleId Id of the raffle
+    /// @notice the operator finish the raffle, if the desired funds has been reached
+    /// @dev it triggers Chainlink VRF1 consumer, and generates a random number that is normalized and checked that corresponds to a MW player
+    function setWinner(uint256 _raffleId)
+        external
+        payable
+        nonReentrant
+        onlyRole(OPERATOR_ROLE)
+    {
+        RaffleStruct storage raffle = raffles[_raffleId];
+        FundingStructure storage funding = fundingList[_raffleId];
+        // Check if the raffle is already accepted or is called again because early cashout failed
+        require(
+            raffle.status == STATUS.ACCEPTED, //||
+            "Raffle in wrong status"
+        );
+        require(
+            raffle.amountRaised >= funding.minimumFundsInWeis,
+            "Not enough funds raised"
+        );
+
+        //   if (raffle.status != STATUS.EARLY_CASHOUT) {
+        require(
+            funding.desiredFundsInWeis <= raffle.amountRaised,
+            "Desired funds not raised"
+        );
+        raffle.status = STATUS.CLOSING_REQUESTED;
+        // }
+
+        //   IVRFConsumerv1 randomNumber = IVRFConsumerv1(chainlinkContractAddress);
+        getRandomNumber(_raffleId, raffle.entries.length);
+
+        emit SetWinnerTriggered(_raffleId, raffle.amountRaised);
+    }
+
+    /// @param _newAddress new address of the platform
+    /// @dev Change the wallet of the platform. The one that will receive the platform fee when the raffle is closed.
+    /// Only the admin can change this
+    function setDestinationAddress(address payable _newAddress)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        destinationWallet = _newAddress;
+    }
+
+    /// @param _raffleId Id of the raffle
+    /// @dev The operator can cancel the raffle. The NFT is sent back to the seller
+    /// The raised funds are send to the destination wallet. The buyers will
+    /// be refunded offchain in the metawin wallet
+    function cancelRaffle(uint256 _raffleId)
+        external
+        nonReentrant
+        onlyRole(OPERATOR_ROLE)
+    {
+        RaffleStruct storage raffle = raffles[_raffleId];
+        //FundingStructure memory funding = fundingList[_raffleId];
+        // Dont cancel twice, or cancel an already ended raffle
+        require(
+            raffle.status != STATUS.ENDED &&
+                raffle.status != STATUS.CANCELLED &&
+                raffle.status != STATUS.EARLY_CASHOUT &&
+                raffle.status != STATUS.CLOSING_REQUESTED &&
+                raffle.status != STATUS.CANCEL_REQUESTED,
+            "Wrong status"
+        );
+
+        // only if the raffle is in accepted status the NFT is staked and could have entries sold
+        if (raffle.status == STATUS.ACCEPTED) {
+            // transfer nft to the owner
+            IERC721 _asset = IERC721(raffle.collateralAddress);
+            _asset.transferFrom(
+                address(this),
+                raffle.seller,
+                raffle.collateralId
+            );
+        }
+        raffle.status = STATUS.CANCEL_REQUESTED;
+        raffle.cancellingDate = block.timestamp;
+
+        emit RaffleCancelled(_raffleId, raffle.amountRaised);
+    }
+
+    /// @param _raffleId Id of the raffle
+    /// @dev The player can claim a refund during the first 30 days after the raffle was cancelled
+    /// in the map "ClaimsData" it is saves how much the player spent on that raffle, as they could
+    /// have bought several entries
+    function claimRefund(uint256 _raffleId) external nonReentrant {
+        RaffleStruct storage raffle = raffles[_raffleId];
+        require(raffle.status == STATUS.CANCEL_REQUESTED, "wrong status");
+        require(
+            block.timestamp <= raffle.cancellingDate + 30 days,
+            "claim time expired"
+        );
+
+        ClaimStruct storage claimData = claimsData[
+            keccak256(abi.encode(msg.sender, _raffleId))
+        ];
+
+        require(claimData.claimed == false, "already refunded");
+
+        raffle.amountRaised = raffle.amountRaised - claimData.amountSpentInWeis;
+
+        claimData.claimed = true;
+        (bool sent, ) = msg.sender.call{value: claimData.amountSpentInWeis}("");
+        require(sent, "Fail send refund");
+
+        emit Refund(_raffleId, claimData.amountSpentInWeis, msg.sender);
+    }
+
+    /// @param _raffleId Id of the raffle
+    /// @dev after 30 days after cancelling passes, the operator can transfer to
+    /// destinationWallet the remaining funds
+    function transferRemainingFunds(uint256 _raffleId)
+        external
+        nonReentrant
+        onlyRole(OPERATOR_ROLE)
+    {
+        RaffleStruct storage raffle = raffles[_raffleId];
+        require(raffle.status == STATUS.CANCEL_REQUESTED, "Wrong status");
+        require(
+            block.timestamp > raffle.cancellingDate + 30 days,
+            "claim too soon"
+        );
+
+        raffle.status = STATUS.CANCELLED;
+
+        (bool sent, ) = destinationWallet.call{value: raffle.amountRaised}("");
+        require(sent, "Fail send Eth to MW");
+
+        emit RemainingFundsTransferred(_raffleId, raffle.amountRaised);
+
+        raffle.amountRaised = 0;
+    }
+
+    /// @param _raffleId Id of the raffle
+    /// @return array of entries of that particular raffle
+    function getEntries(uint256 _raffleId)
+        external
+        view
+        returns (address[] memory)
+    {
+        return raffles[_raffleId].entries;
+    }
+
+    function getClaimData(uint256 _raffleId, address _player)
+        external
+        view
+        returns (ClaimStruct memory)
+    {
+        return claimsData[keccak256(abi.encode(_player, _raffleId))];
+    }
 }
