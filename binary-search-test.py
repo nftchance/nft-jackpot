@@ -12,36 +12,27 @@ quantity_array = [
 
 entries_array = []
 
+# Building the tail array
 for quantity in quantity_array:
     entries_array.append(entries_array[len(
         entries_array) - 1] + quantity if len(entries_array) > 0 else quantity)
 
-
 def search(arr, l, r, x):
-    if x == 0:
-        return 0
-
-    # Check base case
-    while r >= l:
+    while l < r:
+        # Get the middle index
         mid = l + (r - l) // 2
-
-        # If the next element is larger than x and
-        # the current element is smaller than or equal to x
-        if arr[mid] > x and arr[mid - 1] <= x:
-            return mid
 
         # If element is smaller than mid, then it
         # can only be present in left subarray
-        elif arr[mid] > x:
-            r = mid - 1
+        if arr[mid] > x:
+            r = mid
 
         # Else the element can only be present
         # in right subarray
         else:
             l = mid + 1
 
-    # Element is the tail of the array
-    return len(arr) - 1
+    return l
 
 
 def validate(arr, answer, x):
@@ -49,7 +40,6 @@ def validate(arr, answer, x):
         return True
 
     return arr[x] > answer and arr[x - 1] <= answer
-
 
 tests = [
     search(entries_array, 0, len(entries_array) - 1, 20) == 2,
@@ -75,4 +65,6 @@ tests = [
     validate(entries_array, 75, 6) == False,
 ]
 
-print('All tests passing:', all(tests))
+print('All traditional tests passing:', all(tests))
+
+# pop the second element in entries_array (and don't update )
