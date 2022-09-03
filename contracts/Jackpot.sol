@@ -111,18 +111,6 @@ contract Jackpot is
         );
     }
 
-    function abortEntry(
-          uint256 _jackpotId
-        , uint256 _entryId
-    ) 
-        public 
-    {
-        _abortEntry(
-              _jackpotId
-            , _entryId
-        );
-    }
-
     function drawJackpot(
         uint256 _jackpotId
     ) 

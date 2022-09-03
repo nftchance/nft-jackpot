@@ -2,16 +2,19 @@
 
 pragma solidity ^0.8.16;
 
-import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+import { JackpotGreeks } from "./JackpotGreeks.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { VRFConsumerBase } from "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
 
-import "./JackpotGreeks.sol";
+import { IJackpotPrizePool } from "./PrizePool/interfaces/IJackpotPrizePool.sol";
 
-contract JackpotComptroller is
-      JackpotGreeks
-    , VRFConsumerBase 
-{
+contract JackpotComptroller is VRFConsumerBase {
+    using Clones for address;
+
     bytes32 internal keyHash; // chainlink
     uint256 internal fee; // fee paid in LINK to chainlink. (0.1 in Rinkeby, 2 in Mainnet)
+
+    address public prizePoolImplementation;
 
     constructor(
           address _coordinator
@@ -26,147 +29,61 @@ contract JackpotComptroller is
     {
         keyHash = _keyHash;
         fee = _fee;
+
+        _setPrizePoolImplementation(_prizePoolImplementation); 
     }
 
+    /**
+     * @dev Sets the prize pool implementation for future Jackpot deployments.
+     * @param _prizePoolImplementation The address of the prize pool implementation.
+     */
+    function _setPrizePoolImplementation(
+        address _prizePoolImplementation
+    ) 
+        internal 
+    {
+        prizePoolImplementation = _prizePoolImplementation;
+    }
+
+    /**
+     * @dev Opens a new Jackpot contract, defines the constants, qualifiers and
+     *      accepts the starting collateral.
+     * @param _constants The mathematical constants that control the Jackpot rules.
+     * @param _qualifiers An array of qualifying metrics that allow an individual to 
+     *                    buy or claim an entry for the Jackpot.
+     * @param _collateral An array of tokens and associated token ids / quantities that 
+     *                    being supplied as collateral for this Jackpot.
+     * @param _cancelTime The time at which refunds were enabled for a Jackpot.
+     * @notice The `cancelTime` is the only parameter that is not immutable. It is used to
+     *         allow the seeder to close the Jackpot early if the minimum funding is not
+     *         reached.
+     * @notice No measure of on-chain indexing is in state to keep this as cheap as possible,
+     *         meaning there is no on-chain enumerable list of jackpots. Extreme measures are 
+     *         taken as the rest of the processing is extremely expensive.
+     */ 
     function _openJackpot(
           JackpotConstantSchema _constants
         , JackpotQualifierSchema[] calldata _qualifiers
+        , CollateralSchema[] calldata _collateral
         , uint256 _cancelTime
     ) 
         internal
+        returns (IJackpotPrizePool prizePool)
     { 
-        // Create data sturcture in the Jackpot registry
-    }
+        /// @dev Deploy EIP-1167 Minimal Proxy clone of PrizePool.
+        prizePool = IJackpotPrizePool(masterContract.clone());
 
-    function _abortJackpot(
-        uint256 _jackpotId
-    ) 
-        internal 
-    { 
-        // Confirm the Jackpot is open.
-        // Confirm the sender is the seeder.
-        // Mark Jackpot as aborted.
-        // Withdraw all collateral.
-    }
+        /// @dev Initialize PrizePool to the seeder with all needed information with the pool.
+        IJackpotPrizePool(prizePool).initialize(
+              _msgSender()
+            , this
+            , _constants
+            , _qualifiers
+            , _collateral
+            , _cancelTime
+        );
 
-    function _fundJackpot(
-          uint256 _jackpotId
-        , CollateralSchema[] calldata _collaterals
-    ) 
-        internal 
-    { 
-        // Confirm that the jackpot can be funded.
-        // Confirm that the jackpot has not already been drawn.
-    }
-
-    function _openEntry(
-        bytes calldata _fingerprint
-    )
-        internal
-        payable
-    { 
-        // Verify that the fingerprint decay is at zero.
-        // Confirm the message value is sufficient to cover quantity.
-    }
-
-    function _openEntryEmpty(
-          uint256 _jackpotId
-    ) 
-        internal
-        payable
-    { 
-        // Confirm that the Jackpot is open.
-        // Use wallet address as fingerprint.
-    }
-
-    function _openEntryBacked(
-        uint256 _jackpotId
-        , CollateralSchema[] calldata _collaterals
-    ) 
-        internal
-        payable 
-    { 
-        // Confirm that the jackpot is open.
-        // Confirm that the collateral meets the qualifiers set.
-        // If more than one qualifier is required, then while loop until meeting the 
-        // requirements of all qualifiers otherwise revert.
-        // Confirm that the collateral fingerprint decay is at 0.
-            // Proceed with normal entry opening however we cannot use the _openEntry
-            // as everything will have to be done inline in this function to avoid an extra for loop.
-        // Confirm the message value is sufficient to cover quantity.
-    }
-
-    function _openEntrySignature(
-          uint256 _jackpotId
-        , bytes calldata _signature
-    ) 
-        internal
-        payable 
-    { 
-        // Confirm that the Jackpot is open.
-        // Confirm that the signature is valid.
-        // Proceed with normal entry opening.
-    }
-
-    function _abortEntry(
-        uint256 _jackpotId
-        , uint256 _entryId
-    ) 
-        internal 
-    { 
-        // Confirm that the sender is the owner of the entry.
-        // Confirm that the jackpot is not already drawn.
-        // Confirm that the entry is not already aborted.
-        // Determine what amount of refund is owed with the following logic:
-        // refund = amountDeposited * (1 - block.timestamp / drawTime)
-        // Transfer the refund to the entry owner.
-        // Delete the entry in the array.
-        // Update the tail of .entries to have the proper ending index. 
-    }
-
-    function _drawJackpot(
-        uint256 _jackpotId
-    ) 
-        internal 
-    { 
-        // Confirm that the jackpot is ready to be drawn
-        // Confirm that the jackpot is not already drawn
-        // Confirm that the jackpot is not already aborted
-        // Use Chainlink to get the winner.
-        // Store chainlink request ID in mapping pointing to Jackpot.
-    }
-
-    function _terminateJackpot(
-        uint256 _jackpotId
-    ) 
-        internal 
-    { 
-        // Confirm that the sender is the seeder of the jackpot.
-        // Confirm that the jackpot is in the open state.
-        // Set the state to choosing winner.
-        // Use Chainlink to get the winner.
-        // Store chainlink request ID in mapping pointing to Jackpot.
-    }
-
-    function _claimJackpot(
-          uint256 _jackpotId
-        , uint256 _entryId
-    ) 
-        internal 
-    { 
-        // Confirm that the sender is the owner of the entry.
-        // Confirm that the entry is the winner.
-        // Transfer the prize associated to this entry id to the sender.
-    }
-
-    function _claimRefund(
-          uint256 _jackpotId
-        , uint256 _entryId
-    ) 
-        internal 
-    { 
-        // Confirm that the sender is the owner of the entry.
-        // Determine how much of a refund is owed for this entry.
-        // Transfer the refund to the entry owner.
+        /// @dev Emit event with the address of the PrizePool. (Used for at-time indexing.)
+        emit JackpotCreated(address(prizePool));
     }
 }

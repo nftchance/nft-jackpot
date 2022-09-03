@@ -24,8 +24,6 @@ int256 priceDecayConstant;
 int256 startTime;
 /// @dev Enabling permisionsless and non-oracle running jackpot distribution.
 int256 endTime;
-/// @dev Adds support for falling returns as draw-time approaches.
-int256 refundDecayConstant;
 ```
 #### Token Qualifier
 
@@ -74,14 +72,6 @@ To avoid this, Jackpot is built on top of [GDA pricing](https://www.paradigm.xyz
 ![GDA model](gda.png)
 
 Instead of flat-rate entry prices, they are fluid to the state of raffle.
-
-#### Entry Refund Decay
-
-Raffles and lotteries are often looked at as exploitative. They don't have to be overtly positioned in this direction though. Instead, Jackpot offers decaying refunds that are again controlled by the seeder.
-
-This means, that the seeder of a Jackpot determines the portion of the deposited funds are available for refund before the drawing takes place.
-
-This means, that if someone does wait just seconds before the drawing takes place, then they would receive a much smaller fraction of their deposited funds than someone that withdrew days or hourse earlier.
 
 #### Entry Fingerprints
 

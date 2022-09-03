@@ -4,10 +4,13 @@ pragma solidity 0.8.16;
 
 import {JackpotTails} from "./JackpotTails.sol";
 
+import { JackpotLibrary } from "./Library/JackpotLibrary.sol"; 
+
 import {PRBMathSD59x18} from "@prb/math/contracts/PRBMathSD59x18.sol";
 
 contract JackpotGreeks is
-    JackpotTails
+      JackpotTails
+    , JackpotLibrary
 {
     using PRBMathSD59x18 for int256;
 
@@ -16,52 +19,6 @@ contract JackpotGreeks is
     // Vega	Option price	Volatility
     // Theta	Option price	Time to maturity
     // Rho	Option price	Interest rate
-
-    /// All the different status a raffle can have
-    enum STATUS {
-        CREATED, // the operator creates the raffle
-        ACCEPTED, // the seller stakes the nft for the raffle
-        EARLY_CASHOUT, // the seller wants to cashout early
-        CANCELLED, // the operator cancels the raffle and transfer the remaining funds after 30 days passes
-        CLOSING_REQUESTED, // the operator sets a winner
-        ENDED, // the raffle is finished, and NFT and funds were transferred
-        CANCEL_REQUESTED // operator asks to cancel the raffle. Players has 30 days to ask for a refund
-    }
-
-    struct JackpotConstantSchema {
-        /// @dev Prevent the same token from being used in quick succession.
-        int256 fingerprintDecayConstant;
-        /// @dev GDA implementation for seeder controlled entry pricing.
-        int256 priceInitial;
-        int256 priceScaleConstant;
-        int256 priceDecayConstant;
-        int256 startTime;
-        /// @dev Enabling permisionsless and non-oracle running jackpot distribution.
-        int256 endTime;
-        /// @dev Adds support for falling returns as draw-time approaches.
-        int256 refundDecayConstant;
-    }
-
-    struct JackpotQualifierSchema { 
-        address token;
-        uint256 quantity;
-        uint256 max;
-    }
-
-    struct JackpotEntrySchema {
-        address buyer; 
-        uint256 quantity;
-        uint256 tail;
-    }
-
-    struct JackpotSchema { 
-        STATUS status;
-        JackpotConstantSchema constants;
-        JackpotQualifierSchema[] qualifiers;
-        address prizePool;
-        uint256 winner;
-        int256 cancelTime;
-    }
 
     JackpotSchema[] public jackpots;
 
@@ -89,15 +46,5 @@ contract JackpotGreeks is
         //price in terms of ether but we scale up by 10^18 during computation
         //in order to do fixed point math.
         return uint256(totalCost);
-    }
-
-    function _getRefund(
-        uint256 _quantity
-    )     
-        public
-        pure
-        returns (uint256)
-    {
-        return _quantity;
     }
 }

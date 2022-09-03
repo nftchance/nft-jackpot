@@ -2,14 +2,22 @@
 
 pragma solidity ^0.8.16;
 
-import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+import { JackpotGreeks } from "./JackpotGreeks.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { VRFConsumerBase } from "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
 
-import "./JackpotGreeks.sol";
+import { IJackpotPrizePool } from "./PrizePool/interfaces/IJackpotPrizePool.sol";
 
-contract JackpotComptroller is VRFConsumerBase {
+contract JackpotComptroller is
+      JackpotGreeks
+    , VRFConsumerBase 
+{
+    using Clones for address;
 
     bytes32 internal keyHash; // chainlink
     uint256 internal fee; // fee paid in LINK to chainlink. (0.1 in Rinkeby, 2 in Mainnet)
+
+    address public prizePoolImplementation;
 
     constructor(
           address _coordinator
@@ -22,115 +30,92 @@ contract JackpotComptroller is VRFConsumerBase {
             , _linkToken
         )
     {
-        require(_coordinator != address(0));
-        require(_linkToken != address(0));
-        require(_keyHash != bytes32(0));
-        require(_fee != 0);
-
         keyHash = _keyHash;
         fee = _fee;
+
+        _setPrizePoolImplementation(_prizePoolImplementation); 
     }
 
-    function _openJackpot(
-          JackpotConstantSchema _constants
-        , JackpotQualifierSchema[] calldata _qualifiers
-        , uint256 _cancelTime
-    )
-        internal
-        payable
-        returns (uint256)
+    function _depositCollateral(
+        CollateralSchema[] memory _collateral
+    ) 
+        public
+        onlyComptroller() 
     {
-        uint256 jackpotId = jackpots.length; 
+        /// @dev Emit single event for all tokens being deposited.
+        /// @notice This is not an issue to be done first since if the tx 
+        ///         reverts and takes the event with it.
+        emit JackpotCollateralized(_collateral);
 
-        // TODO: Implement the Clone deployment
-        // address prizePoolAddress = determineAddress(jackpotId);
-        // address prizePool = new address(prizePoolAddress);
+        for(uint i; i < _collateral.length; i++) {
+            CollateralSchema memory collateralToken = _collateral[i];
 
-        /// @dev Save the Jackpot to the record. 
-        jackpots[jackpotId] = JackpotSchema({
-              status: STATUS.CREATED
-            , constants: _constants
-            , qualifiers: _qualifiers
-            , prizePool: prizePoolAddress
-            , winner: 0
-            , cancelTime: _cancelTime
+            /// @dev Make sure the caller owns the token being deposited.
+            /// @notice The ownership check is handled at this base level to avoid
+            ///         the need for multiple for loops / losing non-fungible ability.
+            IERC721 token = IERC721(collateralToken.token);
+            require(
+                token.ownerOf(collateralToken.id) == msg.sender,
+                "Jackpot: not owner."
+            );
+
+            /// @dev Always append newly deposited collateral to end of roster.
+            collateral.push(_collateral[i]);
+
+            /// @dev Deposit the collateral into this Prize Pool.
+            token.transferFrom(
+                  msg.sender
+                , address(this)
+                , collateralToken.id
+            );
+        }
+    }
+
+    function _buyEntry(
+          address _buyer
+        , uint256 _quantity
+    )
+        public
+        payable
+        onlyComptroller()
+        returns (uint256 tail)
+    {
+        tail = _quantity;
+
+        if(entries.length > 0) tail += entries[entries.length - 1].tail;
+
+        JackpotEntrySchema memory entry = JackpotEntrySchema({
+            buyer: _buyer,
+            quantity: _quantity,
+            tail: tail
         });
 
-        /// @dev Announce to the world!
-        emit JackpotCreated(msg.sender, jackpotId);
-
-        return jackpotId; 
+        emit JackpotEntryAdded(entry);
     }
 
-
-    /// @dev callable by players. Depending on the number of entries assigned to the price structure the player buys (_id parameter)
-    /// one or more entries will be assigned to the player.
-    /// Also it is checked the maximum number of entries per user is not reached
-    /// As the method is payable, in msg.value there will be the amount paid by the user
-    /// @notice If the operator made a call to set a required nft, only the owners of that nft can make a call to this method. This will be
-    /// used for special raffles
-    /// @param _raffleId: id of the raffle
-    /// @param _id: id of the price structure
-    function buyEntry(uint256 _raffleId, uint256 _id)
-        external
+    function _exitCollateral(
+        address[] receivers
+    ) 
+        public
         payable
-    {
-        // TODO: Verify that one of the qualifiers has been met for the raffle.
+        onlyComptroller()
+    { 
+        for(
+            uint i; 
+            i < receivers.length;
+            i++
+        ) { 
+            address receiver = receivers[i];
+            CollateralSchema memory collateralToken = collateral[i];
 
-        if (raffles[_raffleId].requiredNFT != address(0)) {
-            IERC721 requiredNFT = IERC721(raffles[_raffleId].requiredNFT);
-            require(requiredNFT.balanceOf(msg.sender) > 0, "No NFT");
+            IERC721 token = IERC721(collateralToken.token);
+            token.transferFrom(
+                  address(this)
+                , receiver
+                , collateralToken.id
+            );
         }
-        require(
-            raffles[_raffleId].status == STATUS.ACCEPTED,
-            "Raffle is not in accepted"
-        ); // 1808
-        PriceStructure memory priceStruct = getPriceStructForId(_raffleId, _id);
-        //  require(priceStruct.price > 0, "id not supported");
-        require(
-            msg.value == priceStruct.price,
-            "msg.value must be equal to the price"
-        ); // 1722
 
-        bytes32 hash = keccak256(abi.encode(msg.sender, _raffleId));
-        // check there are enough entries left for this particular user
-        require(
-            claimsData[hash].numEntriesPerUser + priceStruct.numEntries <=
-                raffles[_raffleId].maxEntries,
-            "Bought too many entries"
-        ); // 3425
-
-        address entry = msg.sender; // 12
-        for (uint256 i = 0; i < priceStruct.numEntries; i++) {
-            raffles[_raffleId].entries.push(entry);
-        }
-        raffles[_raffleId].amountRaised += msg.value; // 6917 gas
-        // update the field entriesLength, used in frontend to avoid making extra calls
-        raffles[_raffleId].entriesLength = raffles[_raffleId].entries.length;
-        //update claim data
-        claimsData[hash].numEntriesPerUser += priceStruct.numEntries;
-        claimsData[hash].amountSpentInWeis += msg.value;
-
-        emit EntrySold(
-            _raffleId,
-            msg.sender,
-            raffles[_raffleId].entries.length,
-            _id
-        ); // 2377
-    }
-
-
-    // The operator can call this method once they receive the event "RandomNumberCreated"
-    // triggered by the VRF v1 consumer contract (RandomNumber.sol)
-    /// @param _raffleId Id of the raffle
-    /// @param _normalizedRandomNumber index of the array that contains the winner of the raffle. Generated by chainlink
-    /// @notice it is the method that sets the winner and transfers funds and nft
-    /// @dev called only after the backekd checks the winner is a member of MW. Only those who bought using the MW site
-    /// can be winners, not those who made the call to "buyEntries" directly without using MW
-    function transferNFTAndFunds(
-        uint256 _raffleId,
-        uint256 _normalizedRandomNumber
-    ) internal nonReentrant {
         RaffleStruct storage raffle = raffles[_raffleId];
         // Only when the raffle has been asked to be closed and the platform
         require(
@@ -148,27 +133,11 @@ contract JackpotComptroller is VRFConsumerBase {
             address(this),
             raffle.entries[_normalizedRandomNumber],
             raffle.collateralId
-        ); // transfer the tokens to the contract
-
-        uint256 amountForPlatform = (raffle.amountRaised *
-            raffle.platformPercentage) / 10000;
-        uint256 amountForSeller = raffle.amountRaised - amountForPlatform;
-        // transfer amount (75%) to the seller.
-        (bool sent, ) = raffle.seller.call{value: amountForSeller}("");
-        require(sent, "Failed to send Ether");
-        // transfer the amount to the platform
-        (bool sent2, ) = destinationWallet.call{value: amountForPlatform}("");
-        require(sent2, "Failed send Eth to MW");
-        emit FeeTransferredToPlatform(_raffleId, amountForPlatform);
-
-        emit RaffleEnded(
-            _raffleId,
-            raffle.entries[_normalizedRandomNumber],
-            raffle.amountRaised,
-            _normalizedRandomNumber
         );
-    }
 
+        (bool sent, ) = raffle.seller.call{value: address(this).balance}("");
+        require(sent, "Failed to send Ether");
+    }
 
     // can be called by the seller at every moment once enough funds has been raised
     /// @param _raffleId Id of the raffle
@@ -243,7 +212,7 @@ contract JackpotComptroller is VRFConsumerBase {
         emit SetWinnerTriggered(_raffleId, raffle.amountRaised);
     }
 
-    /// @param _raffleId Id of the raffle
+        /// @param _raffleId Id of the raffle
     /// @dev The operator can cancel the raffle. The NFT is sent back to the seller
     /// The raised funds are send to the destination wallet. The buyers will
     /// be refunded offchain in the metawin wallet
@@ -330,5 +299,123 @@ contract JackpotComptroller is VRFConsumerBase {
         emit RemainingFundsTransferred(_raffleId, raffle.amountRaised);
 
         raffle.amountRaised = 0;
+    }
+
+    // TODO THE BREAK BETWEEN TWO VERSIONS OF THE PRIZE POOL
+    
+    function _abortJackpot(
+        uint256 _jackpotId
+    ) 
+        internal 
+    { 
+        // Confirm the Jackpot is open.
+        // Confirm the sender is the seeder.
+        // Mark Jackpot as aborted.
+        // Withdraw all collateral.
+    }
+
+    function _fundJackpot(
+          uint256 _jackpotId
+        , CollateralSchema[] calldata _collaterals
+    ) 
+        internal 
+    { 
+        // Confirm that the jackpot can be funded.
+        // Confirm that the jackpot has not already been drawn.
+    }
+
+    function _openEntry(
+        bytes calldata _fingerprint
+    )
+        internal
+        payable
+    { 
+        // Verify that the fingerprint decay is at zero.
+        // Confirm the message value is sufficient to cover quantity.
+    }
+
+    function _openEntryEmpty(
+          uint256 _jackpotId
+    ) 
+        internal
+        payable
+    { 
+        // Confirm that the Jackpot is open.
+        // Use wallet address as fingerprint.
+    }
+
+    function _openEntryBacked(
+        uint256 _jackpotId
+        , CollateralSchema[] calldata _collaterals
+    ) 
+        internal
+        payable 
+    { 
+        // Confirm that the jackpot is open.
+        // Confirm that the collateral meets the qualifiers set.
+        // If more than one qualifier is required, then while loop until meeting the 
+        // requirements of all qualifiers otherwise revert.
+        // Confirm that the collateral fingerprint decay is at 0.
+            // Proceed with normal entry opening however we cannot use the _openEntry
+            // as everything will have to be done inline in this function to avoid an extra for loop.
+        // Confirm the message value is sufficient to cover quantity.
+    }
+
+    function _openEntrySignature(
+          uint256 _jackpotId
+        , bytes calldata _signature
+    ) 
+        internal
+        payable 
+    { 
+        // Confirm that the Jackpot is open.
+        // Confirm that the signature is valid.
+        // Proceed with normal entry opening.
+    }
+
+    function _drawJackpot(
+        uint256 _jackpotId
+    ) 
+        internal 
+    { 
+        // Confirm that the jackpot is ready to be drawn
+        // Confirm that the jackpot is not already drawn
+        // Confirm that the jackpot is not already aborted
+        // Use Chainlink to get the winner.
+        // Store chainlink request ID in mapping pointing to Jackpot.
+    }
+
+    function _terminateJackpot(
+        uint256 _jackpotId
+    ) 
+        internal 
+    { 
+        // Confirm that the sender is the seeder of the jackpot.
+        // Confirm that the jackpot is in the open state.
+        // Set the state to choosing winner.
+        // Use Chainlink to get the winner.
+        // Store chainlink request ID in mapping pointing to Jackpot.
+    }
+
+    function _claimJackpot(
+          uint256 _jackpotId
+        , uint256 _entryId
+    ) 
+        internal 
+    { 
+        // Confirm that the sender is the owner of the entry.
+        // Confirm that the entry is the winner.
+        // Transfer the prize associated to this entry id to the sender.
+    }
+
+    function _claimRefund(
+          uint256 _jackpotId
+        , uint256 _entryId
+    ) 
+        internal 
+    { 
+        // Confirm that the sender is the owner of the entry.
+        // Determine how much of a refund is owed for this entry.
+        // Transfer the refund to the entry owner.
     }
 }

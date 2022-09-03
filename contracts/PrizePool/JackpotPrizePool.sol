@@ -2,36 +2,44 @@
 
 pragma solidity ^0.8.16;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IJackpotPrizePool } from "./interfaces/IJackpotPrizePool.sol";
 
-contract JackpotPrizePool {
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+import { JackpotGreeks } from "../JackpotGreeks.sol";
+
+import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
+
+contract JackpotPrizePool is 
+      IJackpotPrizePool
+    , Initializable
+    , JackpotGreeks
+{
+    address public seeder;
     address public comptroller;
-
-    struct CollateralSchema {
-        address token; 
-        uint256 id;
-    }
-
-    struct JackpotEntrySchema {
-        address buyer; 
-        uint256 quantity;
-        uint256 tail;
-    }
 
     mapping(string => uint256) public tokenFingerprints;
 
-    CollateralSchema[] public collateral;
+    JL.JackpotConstantSchema public constants;
+    JL.JackpotQualifierSchema[] public qualifiers;
+    JL.CollateralSchema[] public collateral;
 
-    JackpotEntrySchema[] entries;
+    JL.JackpotEntrySchema[] entries;
 
-    event JackpotCollateralized(CollateralSchema[] collateral);
-    event JackpotEntryAdded(JackpotEntrySchema entry);
+    event JackpotCollateralized(JL.CollateralSchema[] collateral);
+    event JackpotEntryAdded(JL.JackpotEntrySchema entry);
 
-    constructor(
-        CollateralSchema[] memory _collateral
-    ) {
+    constructor() {
         /// @dev Initialize the pool with the seeded collateral.
-        _depositCollateral(_collateral);
+    }
+
+    modifier onlySeeder() {
+        /// @dev Only the seeder can call this function.
+        require(
+              msg.sender == seeder
+            , "JackpotPrizePool: onlySeeder"
+        );
+        _; 
     }
 
     modifier onlyComptroller() { 
@@ -40,297 +48,70 @@ contract JackpotPrizePool {
         _;
     }
 
-    function _depositCollateral(
-        CollateralSchema[] memory _collateral
+    function initialize(
+          address _seeder        
+        , address _comptroller
+        , JL.JackpotConstantSchema calldata _constants
+        , JL.JackpotQualifierSchema[] calldata _qualifiers
+        , JL.CollateralSchema[] calldata _collateral
     ) 
-        public
-        onlyComptroller() 
+        public 
+        initializer 
     {
-        /// @dev Emit single event for all tokens being deposited.
-        /// @notice This is not an issue to be done first since if the tx 
-        ///         reverts and takes the event with it.
+        /// @dev Initialize Prize Pool access permissions.
+        seeder = _seeder;
+        comptroller = _comptroller;
+
+        /// @dev Initializing the controlling variables of the pool.
+        constants = _constants;
+        qualifiers = _qualifiers;
+
+        /// @dev Initialize the pool with the seeded collateral.
+        fundJackpot(_collateral); 
+    }
+
+    function fundJackpot(
+        JL.CollateralSchema[] calldata _collateral
+    ) 
+        public 
+        override 
+        onlySeeder() 
+    {
+        /// @dev Add the collateral to the pool.
+        // TODO: Implement collateralization logic.
+
+        /// @dev Emit the collateralized event.
         emit JackpotCollateralized(_collateral);
-
-        for(uint i; i < _collateral.length; i++) {
-            CollateralSchema memory collateralToken = _collateral[i];
-
-            /// @dev Make sure the caller owns the token being deposited.
-            /// @notice The ownership check is handled at this base level to avoid
-            ///         the need for multiple for loops / losing non-fungible ability.
-            IERC721 token = IERC721(collateralToken.token);
-            require(
-                token.ownerOf(collateralToken.id) == msg.sender,
-                "Jackpot: not owner."
-            );
-
-            /// @dev Always append newly deposited collateral to end of roster.
-            collateral.push(_collateral[i]);
-
-            /// @dev Deposit the collateral into this Prize Pool.
-            token.transferFrom(
-                  msg.sender
-                , address(this)
-                , collateralToken.id
-            );
-        }
     }
 
-    function _buyEntry(
-          address _buyer
-        , uint256 _quantity
-    )
-        public
-        payable
-        onlyComptroller()
-        returns (uint256 tail)
-    {
-        tail = _quantity;
-
-        if(entries.length > 0) tail += entries[entries.length - 1].tail;
-
-        JackpotEntrySchema memory entry = JackpotEntrySchema({
-            buyer: _buyer,
-            quantity: _quantity,
-            tail: tail
-        });
-
-        emit JackpotEntryAdded(entry);
-    }
-
-    function _exitCollateral(
-        address[] receivers
-    ) 
-        public
-        payable
-        onlyComptroller()
+    function abortJackport() 
+        public 
+        override
+        onlySeeder() 
     { 
-        for(
-            uint i; 
-            i < receivers.length;
-            i++
-        ) { 
-            address receiver = receivers[i];
-            CollateralSchema memory collateralToken = collateral[i];
-
-            IERC721 token = IERC721(collateralToken.token);
-            token.transferFrom(
-                  address(this)
-                , receiver
-                , collateralToken.id
-            );
-        }
-
-        RaffleStruct storage raffle = raffles[_raffleId];
-        // Only when the raffle has been asked to be closed and the platform
-        require(
-            raffle.status == STATUS.EARLY_CASHOUT ||
-                raffle.status == STATUS.CLOSING_REQUESTED,
-            "Raffle in wrong status"
-        );
-
-        raffle.randomNumber = _normalizedRandomNumber;
-        raffle.winner = raffle.entries[_normalizedRandomNumber];
-        raffle.status = STATUS.ENDED;
-
-        IERC721 _asset = IERC721(raffle.collateralAddress);
-        _asset.transferFrom(
-            address(this),
-            raffle.entries[_normalizedRandomNumber],
-            raffle.collateralId
-        );
-
-        (bool sent, ) = raffle.seller.call{value: address(this).balance}("");
-        require(sent, "Failed to send Ether");
+        constants.cancelTime = int256(block.timestamp).fromInt();
     }
 
-    // can be called by the seller at every moment once enough funds has been raised
-    /// @param _raffleId Id of the raffle
-    /// @notice the seller of the nft, if the minimum amount has been reached, can call an early cashout, finishing the raffle
-    /// @dev it triggers Chainlink VRF1 consumer, and generates a random number that is normalized and checked that corresponds to a MW player
-    function earlyCashOut(uint256 _raffleId) external {
-        RaffleStruct storage raffle = raffles[_raffleId];
-        FundingStructure memory funding = fundingList[_raffleId];
-
-        require(raffle.seller == msg.sender, "Not the seller");
-        // Check if the raffle is already accepted
-        require(
-            raffle.status == STATUS.ACCEPTED,
-            "Raffle not in accepted status"
-        );
-        require(
-            raffle.amountRaised >= funding.minimumFundsInWeis,
-            "Not enough funds raised"
-        );
-
-        raffle.status = STATUS.EARLY_CASHOUT;
-
-        //    IVRFConsumerv1 randomNumber = IVRFConsumerv1(chainlinkContractAddress);
-        getRandomNumber(_raffleId, raffle.entries.length);
-
-        emit EarlyCashoutTriggered(_raffleId, raffle.amountRaised);
-    }
-
-    // helper method to get the winner address of a raffle
-    /// @param _raffleId Id of the raffle
-    /// @param _normalizedRandomNumber index of the array that contains the winner of the raffle. Generated by chainlink
-    /// @return the wallet that won the raffle (at the moment, as must be confirmed that is a member of the MW community)
-    function getWinnerAddressFromRandom(
-        uint256 _raffleId,
-        uint256 _normalizedRandomNumber
-    ) external view returns (address) {
-        return raffles[_raffleId].entries[_normalizedRandomNumber];
-    }
-
-    /// @param _raffleId Id of the raffle
-    /// @notice the operator finish the raffle, if the desired funds has been reached
-    /// @dev it triggers Chainlink VRF1 consumer, and generates a random number that is normalized and checked that corresponds to a MW player
-    function setWinner(uint256 _raffleId)
-        external
-        payable
-        nonReentrant
-        onlyRole(OPERATOR_ROLE)
+    function _openEntry(
+          bytes32 _fingerprint
+        , uint256 _quantity
+    ) 
+        internal 
     {
-        RaffleStruct storage raffle = raffles[_raffleId];
-        FundingStructure storage funding = fundingList[_raffleId];
-        // Check if the raffle is already accepted or is called again because early cashout failed
-        require(
-            raffle.status == STATUS.ACCEPTED, //||
-            "Raffle in wrong status"
-        );
-        require(
-            raffle.amountRaised >= funding.minimumFundsInWeis,
-            "Not enough funds raised"
-        );
 
-        //   if (raffle.status != STATUS.EARLY_CASHOUT) {
-        require(
-            funding.desiredFundsInWeis <= raffle.amountRaised,
-            "Desired funds not raised"
-        );
-        raffle.status = STATUS.CLOSING_REQUESTED;
-        // }
-
-        //   IVRFConsumerv1 randomNumber = IVRFConsumerv1(chainlinkContractAddress);
-        getRandomNumber(_raffleId, raffle.entries.length);
-
-        emit SetWinnerTriggered(_raffleId, raffle.amountRaised);
     }
 
-        /// @param _raffleId Id of the raffle
-    /// @dev The operator can cancel the raffle. The NFT is sent back to the seller
-    /// The raised funds are send to the destination wallet. The buyers will
-    /// be refunded offchain in the metawin wallet
-    function cancelRaffle(uint256 _raffleId)
-        external
-        nonReentrant
-        onlyRole(OPERATOR_ROLE)
-    {
-        RaffleStruct storage raffle = raffles[_raffleId];
-        //FundingStructure memory funding = fundingList[_raffleId];
-        // Dont cancel twice, or cancel an already ended raffle
-        require(
-            raffle.status != STATUS.ENDED &&
-                raffle.status != STATUS.CANCELLED &&
-                raffle.status != STATUS.EARLY_CASHOUT &&
-                raffle.status != STATUS.CLOSING_REQUESTED &&
-                raffle.status != STATUS.CANCEL_REQUESTED,
-            "Wrong status"
-        );
+    function openEntryEmpty() public {}
 
-        // only if the raffle is in accepted status the NFT is staked and could have entries sold
-        if (raffle.status == STATUS.ACCEPTED) {
-            // transfer nft to the owner
-            IERC721 _asset = IERC721(raffle.collateralAddress);
-            _asset.transferFrom(
-                address(this),
-                raffle.seller,
-                raffle.collateralId
-            );
-        }
-        raffle.status = STATUS.CANCEL_REQUESTED;
-        raffle.cancellingDate = block.timestamp;
+    function openEntryBacked() public {}
 
-        emit RaffleCancelled(_raffleId, raffle.amountRaised);
-    }
+    function openEntrySignature() public {}
 
-    /// @param _raffleId Id of the raffle
-    /// @dev The player can claim a refund during the first 30 days after the raffle was cancelled
-    /// in the map "ClaimsData" it is saves how much the player spent on that raffle, as they could
-    /// have bought several entries
-    function claimRefund(uint256 _raffleId) external nonReentrant {
-        RaffleStruct storage raffle = raffles[_raffleId];
-        require(raffle.status == STATUS.CANCEL_REQUESTED, "wrong status");
-        require(
-            block.timestamp <= raffle.cancellingDate + 30 days,
-            "claim time expired"
-        );
+    function terminateJackpot() public {}
 
-        ClaimStruct storage claimData = claimsData[
-            keccak256(abi.encode(msg.sender, _raffleId))
-        ];
+    function drawJackpot() public {}
 
-        require(claimData.claimed == false, "already refunded");
+    function claimJackpot() public {}
 
-        raffle.amountRaised = raffle.amountRaised - claimData.amountSpentInWeis;
-
-        claimData.claimed = true;
-        (bool sent, ) = msg.sender.call{value: claimData.amountSpentInWeis}("");
-        require(sent, "Fail send refund");
-
-        emit Refund(_raffleId, claimData.amountSpentInWeis, msg.sender);
-    }
-
-    /// @param _raffleId Id of the raffle
-    /// @dev after 30 days after cancelling passes, the operator can transfer to
-    /// destinationWallet the remaining funds
-    function transferRemainingFunds(uint256 _raffleId)
-        external
-        nonReentrant
-        onlyRole(OPERATOR_ROLE)
-    {
-        RaffleStruct storage raffle = raffles[_raffleId];
-        require(raffle.status == STATUS.CANCEL_REQUESTED, "Wrong status");
-        require(
-            block.timestamp > raffle.cancellingDate + 30 days,
-            "claim too soon"
-        );
-
-        raffle.status = STATUS.CANCELLED;
-
-        (bool sent, ) = destinationWallet.call{value: raffle.amountRaised}("");
-        require(sent, "Fail send Eth to MW");
-
-        emit RemainingFundsTransferred(_raffleId, raffle.amountRaised);
-
-        raffle.amountRaised = 0;
-    }
+    function claimRefund() public {}
 }
-
-/// TRUNCATING A LIST OF NUMBERS WITHOUT SORTING AND MAINTAING PROVABLE RANDOMNESS
-
-/// 15, 10, 5, 1, 25    -- 56    
-/// 15 5, 1, 25         -- 46
-
-/// the tail decreased by 10 however the random number is still the same
-
-/// the reason things seem hard right now is because i am misuing random numbers?
-/// if i want to do it like this, one would have to use some fucked up bubble sort?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
