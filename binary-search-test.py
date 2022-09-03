@@ -68,3 +68,5 @@ tests = [
 print('All traditional tests passing:', all(tests))
 
 # pop the second element in entries_array (and don't update )
+# I don't think there is any way to actually do this on chain in solidity
+# -- conclusion: overall it seems like there is no in-memory way to pop-shift a linked list
