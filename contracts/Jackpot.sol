@@ -30,84 +30,51 @@ contract Jackpot is
         )
     { }
 
-    function getJackpot(
-        uint256 _jackpotId
-    )
-        public
-        view
-        returns (JackpotSchema jackpotSchema)
-    { }
-
-    function getEntry(
-          uint256 _jackpotId
-        , uint256 _entryId
+    /**
+     * See {JackpotComptroller._setPrizePoolImplementation}.
+     * 
+     * Public Requirements:
+     * - The caller must be the owner of the contract.
+     */
+    function setPrizePoolImplementation(
+        address _prizePoolImplementation
     ) 
-        public 
-        view
-        returns (JackpotEntrySchema entrySchema) 
-    { }
+        public
+        onlyOwner()
+    {
+        _setPrizePoolImplementation(_prizePoolImplementation);
+    }
 
+
+    /**
+     * See {JackpotComptroller._openJackpot}.
+     */
     function openJackpot(
           JackpotConstantSchema _constants
         , JackpotQualifierSchema[] calldata _qualifiers
-        , uint256 _cancelTime
-    ) public payable { 
+    ) 
+        public 
+        payable 
+    { 
+        require(
+              _constants.cancelTime > int256(block.timestamp).toInt()
+            , "Jackpot::openJackpot: cancel time must be in the future."
+        );
+
+        require(
+              _constants.endTime > int256(block.timestamp).toInt()
+            , "Jackpot::openJackpot: end time must be in the future."   
+        );
+
+        // require(
+        //     msg.value >= _constants.startingCollateral
+        //     , "Jackpot::openJackpot: insufficient collateral."
+        // );
+
         _openJackpot(
               _constants
             , _qualifiers
             , _cancelTime
-        );
-    }
-
-    function abortJackpot(
-        uint256 _jackpotId
-    ) 
-        public 
-    { 
-        _abortJackpot(_jackpotId);
-    }
-
-    function fundJackpot(
-          uint256 _jackpotId
-        , CollateralSchema[] calldata _collateral
-    ) 
-        public 
-        payable 
-    {
-        _fundJackpot(_collateral);
-    }
-
-    function openEntryEmpty(
-        uint256 _quantity
-    ) 
-        public
-        payable
-    {
-        _openEntryEmpty(_quantity);
-    }
-
-    function openEntryBacked(
-          CollateralSchema[] calldata _collateral
-        , uint256 _quantity
-    ) 
-        public
-        payable
-    { 
-        _openEntryBacked(
-              _collateral
-            , _quantity
-        );
-    }
-
-    function openEntrySignature(
-          bytes calldata signature
-        , uint256 _quantity
-    ) 
-        public
-    {
-        _openEntrySignature(
-              signature
-            , _quantity
         );
     }
 
@@ -117,33 +84,5 @@ contract Jackpot is
         public 
     { 
         _drawJackpot(_jackpotId);
-    }
-
-    function terminateJackpot(
-        uint256 _jackpotId
-    ) 
-        public 
-    {
-        _terminateJackpot(_jackpotId);
-    }
-
-    function claimJackpot(
-          uint256 _jackpotId
-        , uint256 _entryId
-    ) public { 
-        _claimJackpot(
-              _jackpotId
-            , _entryId
-        );
-    }
-
-    function claimRefund(
-          uint256 _jackpotId
-        , uint256 _entryId
-    ) public { 
-        _claimRefund(
-              _jackpotId
-            , _entryId
-        );
     }
 }

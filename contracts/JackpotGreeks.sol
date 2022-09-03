@@ -2,16 +2,11 @@
 
 pragma solidity 0.8.16;
 
-import {JackpotTails} from "./JackpotTails.sol";
-
-import { JackpotLibrary } from "./Library/JackpotLibrary.sol"; 
+import { JackpotLibrary as JL } from "./Library/JackpotLibrary.sol"; 
 
 import {PRBMathSD59x18} from "@prb/math/contracts/PRBMathSD59x18.sol";
 
-contract JackpotGreeks is
-      JackpotTails
-    , JackpotLibrary
-{
+contract JackpotGreeks {
     using PRBMathSD59x18 for int256;
 
     // Delta	Option price	Value of underlying asset
@@ -20,7 +15,7 @@ contract JackpotGreeks is
     // Theta	Option price	Time to maturity
     // Rho	Option price	Interest rate
 
-    JackpotSchema[] public jackpots;
+    JL.JackpotSchema[] public jackpots;
 
     function _getPrice(
           uint256 _jackpotId
@@ -30,7 +25,7 @@ contract JackpotGreeks is
         view
         returns (uint256)
     {
-        JackpotConstantSchema constants = jackpots[_jackpotId].constants;
+        JL.JackpotConstantSchema constants = jackpots[_jackpotId].constants;
 
         int256 quantity = int256(_quantity).fromInt();
         int256 numSold = int256(currentId).fromInt();
