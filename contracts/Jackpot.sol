@@ -17,6 +17,9 @@ contract Jackpot is
       JackpotComptroller
     , Ownable
 {
+    /// @dev Enables the usage of PRBMathSD59x18 for fixed point math.
+    using PRBMathSD59x18 for int256;
+
     constructor(
           address _coordinator
         , address _linkToken
@@ -53,6 +56,7 @@ contract Jackpot is
     function openJackpot(
           JL.JackpotConstantSchema calldata _constants
         , JL.JackpotQualifierSchema[] calldata _qualifiers
+        , JL.CollateralSchema[] calldata _collateral
     ) 
         public 
         payable 
@@ -75,6 +79,7 @@ contract Jackpot is
         _openJackpot(
               _constants
             , _qualifiers
+            , _collateral
         );
     }
 }

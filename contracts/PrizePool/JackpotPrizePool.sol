@@ -77,6 +77,27 @@ contract JackpotPrizePool is
         fundJackpot(_collateral); 
     }
 
+    function _fundJackpot(
+        JL.CollateralSchema[] calldata _collateral
+    ) 
+        internal 
+    {
+        /// @dev Add the collateral to the pool.
+        for (uint256 i = 0; i < _collateral.length; i++) {
+            /// @dev Transfer the collateral to the pool.
+            IERC721(_collateral[i].token).safeTransferFrom(
+                  msg.sender
+                , address(this)
+                , _collateral[i].tokenId
+            );
+
+            collateral.push(_collateral[i]);
+        }
+
+        /// @dev Emit the event that the pool has been collateralized.
+        emit JackpotCollateralized(_collateral);
+    }
+
     function fundJackpot(
         JL.CollateralSchema[] calldata _collateral
     ) 
@@ -85,11 +106,7 @@ contract JackpotPrizePool is
         onlySeeder() 
         onlySeeded()
     {
-        /// @dev Add the collateral to the pool.
-        // TODO: Implement collateralization logic.
-
-        /// @dev Emit the collateralized event.
-        emit JackpotCollateralized(_collateral);
+        _fundJackpot(_collateral);
     }
 
     function abortJackport() 
@@ -172,7 +189,7 @@ contract JackpotPrizePool is
     /**
      * @notice Allows a buyer to open an entry into the Jackpot.
      * @param _quantity The amount of tickets to buy.
-     
+
      * 
      * Requirements:
      * - The Jackpot must not have any qualifiers.

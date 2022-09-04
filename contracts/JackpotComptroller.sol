@@ -39,6 +39,7 @@ contract JackpotComptroller is
     /// @dev Existing interface to the Prize Pool implementation.
     IJackpotPrizePool PRIZE_POOL;
 
+    mapping(address => bool) public addressToIsJackpot;
     mapping(uint256 => address) public requestIdsToPrizePoolAddresses;
 
     event JackpotOpened(address prizePool);
@@ -46,13 +47,11 @@ contract JackpotComptroller is
     constructor(
           address _prizePoolImplementation
         , address _clCoordinator
-        , address _clLinkToken
         , bytes32 _clKeyHash
         , uint256 _clFee
     )
         VRFConsumerBaseV2(
               _clCoordinator
-            , _clLinkToken
         )
     {
         _setPrizePoolImplementation(_prizePoolImplementation); 
@@ -73,11 +72,8 @@ contract JackpotComptroller is
     ) 
         internal 
     {
-        IJackpotPrizePool memory prizePool = IJackpotPrizePool(_prizePoolImplementation);
-        require(
-              prizePool.isJackpot()
-            , "Jackpot::setPrizePoolImplementation: must be a Jackpot contract."
-        );
+        /// @dev Confirm that the proper interface is setup.
+        IJackpotPrizePool prizePool = IJackpotPrizePool(_prizePoolImplementation);
 
         /// @dev Save the address that is used for the implementation so that
         ///      it can be used to create new Prize Pools.
@@ -95,7 +91,6 @@ contract JackpotComptroller is
      *                    buy or claim an entry for the Jackpot.
      * @param _collateral An array of tokens and associated token ids / quantities that 
      *                    being supplied as collateral for this Jackpot.
-     * @param _cancelTime The time at which refunds were enabled for a Jackpot.
      * @notice The `cancelTime` is the only parameter that is not immutable. It is used to
      *         allow the seeder to close the Jackpot early if the minimum funding is not
      *         reached.
@@ -107,36 +102,44 @@ contract JackpotComptroller is
           JL.JackpotConstantSchema calldata _constants
         , JL.JackpotQualifierSchema[] calldata _qualifiers
         , JL.CollateralSchema[] calldata _collateral
-        , uint256 _cancelTime
     ) 
         internal
         returns (IJackpotPrizePool prizePool)
     { 
         /// @dev Deploy EIP-1167 Minimal Proxy clone of PrizePool.
-        prizePool = IJackpotPrizePool(payable(prizePoolImplementation.clone()));
+        address payable prizePoolAddress = payable(prizePoolImplementation.clone());
+
+        /// @dev Interface with the newly created pool.
+        prizePool = IJackpotPrizePool(prizePoolAddress);
 
         /// @dev Initialize PrizePool to the seeder with all needed information with the pool.
-        IJackpotPrizePool(prizePool).initialize(
+        prizePool.initialize(
               msg.sender
-            , this
+            , address(this)
             , _constants
             , _qualifiers
             , _collateral
         );
 
+        /// @dev Add this contract as a Chainlink subscriber.
+        addressToIsJackpot[prizePoolAddress] = true;
+
         /// @dev Emit event with the address of the PrizePool. (Used for at-time indexing.)
-        emit JackpotOpened(address(prizePool));
+        emit JackpotOpened(prizePoolAddress);
     }
 
     function drawJackpot(
-        uint256 _winners
+        uint32 _winners
     )
         external
         returns (
-            bytes32 requestId
+            uint256 requestId
         )
     {
-        // TODO: Make sure the caller (the contract) is a PrizePool consumer deployed by this contract. 
+        require(
+              addressToIsJackpot[msg.sender]
+            , "Jackpot::drawJackpot: must be a Jackpot contract."
+        );
 
         requestId = COORDINATOR.requestRandomWords(
               clKeyHash
