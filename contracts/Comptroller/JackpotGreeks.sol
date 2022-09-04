@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.16;
 
-import { JackpotLibrary as JL } from "./Library/JackpotLibrary.sol"; 
+import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
 import {PRBMathSD59x18} from "@prb/math/contracts/PRBMathSD59x18.sol";
 

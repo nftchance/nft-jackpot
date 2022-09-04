@@ -2,18 +2,21 @@
 
 pragma solidity ^0.8.16;
 
-/// @dev Base layer dependencies
-import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+/// @dev Base layer dependencies.
+import { JackpotRandomness } from "./JackpotRandomness.sol";
 
-/// @dev Runtime dependencies
+/// @dev Definition dependencies.
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
-import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import { JackpotLibrary as JL } from "./Library/JackpotLibrary.sol"; 
-import { IJackpotPrizePool } from "./PrizePool/interfaces/IJackpotPrizePool.sol";
+
+/// @dev Interfaces used in-processing.
+import { IJackpotPrizePool } from "../PrizePool/interfaces/IJackpotPrizePool.sol";
+
+/// @dev Helper libraries.
+import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
 contract JackpotComptroller is
-    VRFConsumerBaseV2
+    JackpotRandomness
 {
     /// @dev Enables the usage of EIP-1167 Clones for Pool deployment.
     using Clones for address;
@@ -21,27 +24,21 @@ contract JackpotComptroller is
     /// @dev Enables the usage of PRBMathSD59x18 for fixed point math.
     using PRBMathSD59x18 for int256;
 
-    VRFCoordinatorV2Interface private COORDINATOR;
-
-    // @dev The Chainlink subscription id for the VRF request.
-    uint64 public clSubscriptionId;
-    /// @dev The amount of gas that is used to process and store each returned word.
-    uint32 clCallbackGasLimitPerWinner = 20000;
-    /// @dev The amount of confirmations the Oracle waits before responding.
-    uint16 clRequestConfirmations = 3;
-    /// @dev The gas lane used when responding to the VRF request.
-    bytes32 internal clKeyHash;
-    /// @dev fee paid in LINK to chainlink. 
-    uint256 internal clFee;
+    struct JackpotRegistration { 
+        bool isJackpot;
+        uint256 randomnessRequestId;
+    }
 
     /// @dev The address of the Prize Pool implementation that is used when opening a Jackpot.
     address public prizePoolImplementation;
+
     /// @dev Existing interface to the Prize Pool implementation.
     IJackpotPrizePool PRIZE_POOL;
 
-    mapping(address => bool) public addressToIsJackpot;
-    mapping(uint256 => address) public requestIdsToPrizePoolAddresses;
+    /// @dev Keeps records of which Jackpots have been deployed.
+    mapping(address => JackpotRegistration) public jackpotRegistrations;
 
+    /// @dev Announces that a new Jackpot has been opened.
     event JackpotOpened(address prizePool);
 
     constructor(
@@ -50,14 +47,13 @@ contract JackpotComptroller is
         , bytes32 _clKeyHash
         , uint256 _clFee
     )
-        VRFConsumerBaseV2(
+        JackpotRandomness(
               _clCoordinator
+            , _clKeyHash
+            , _clFee
         )
     {
         _setPrizePoolImplementation(_prizePoolImplementation); 
-
-        clKeyHash = _clKeyHash;
-        clFee = _clFee;
     }
 
     /**
@@ -121,8 +117,11 @@ contract JackpotComptroller is
             , _collateral
         );
 
-        /// @dev Add this contract as a Chainlink subscriber.
-        addressToIsJackpot[prizePoolAddress] = true;
+        /// @dev Add this contract as an allowed caller of Randomness.
+        jackpotRegistrations[prizePoolAddress] = JackpotRegistration({
+              isJackpot: true
+            , randomnessRequestId: 0
+        });
 
         /// @dev Emit event with the address of the PrizePool. (Used for at-time indexing.)
         emit JackpotOpened(prizePoolAddress);
@@ -132,24 +131,21 @@ contract JackpotComptroller is
         uint32 _winners
     )
         external
-        returns (
-            uint256 requestId
-        )
     {
+        JackpotRegistration storage jackpotRegistration = jackpotRegistrations[msg.sender];
+
         require(
-              addressToIsJackpot[msg.sender]
+              jackpotRegistration.isJackpot
             , "Jackpot::drawJackpot: must be a Jackpot contract."
         );
 
-        requestId = COORDINATOR.requestRandomWords(
-              clKeyHash
-            , clSubscriptionId
-            , clRequestConfirmations
-            , clCallbackGasLimitPerWinner * _winners
-            , _winners
+        require(
+              jackpotRegistration.randomnessRequestId == 0
+            , "Jackpot::drawJackpot: Jackpot has already been drawn."
         );
 
-        requestIdsToPrizePoolAddresses[requestId] = msg.sender;
+        /// @dev Submit the request for randomness.
+        jackpotRegistration.randomnessRequestId = _drawJackpot(_winners);
     }
 
     function fulfillRandomWords(
