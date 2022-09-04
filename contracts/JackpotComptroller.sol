@@ -3,47 +3,62 @@
 pragma solidity ^0.8.16;
 
 /// @dev Base layer dependencies
-import { VRFConsumerBase } from "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 
 /// @dev Runtime dependencies
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
+import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import { JackpotLibrary as JL } from "./Library/JackpotLibrary.sol"; 
 import { IJackpotPrizePool } from "./PrizePool/interfaces/IJackpotPrizePool.sol";
 
 contract JackpotComptroller is
-    VRFConsumerBase
+    VRFConsumerBaseV2
 {
     /// @dev Enables the usage of EIP-1167 Clones for Pool deployment.
     using Clones for address;
 
-    /// @dev The randomnes key for Chainlink.
-    bytes32 internal keyHash;
-    /// @dev fee paid in LINK to chainlink. (0.1 in Rinkeby, 2 in Mainnet)
-    uint256 internal fee;
+    /// @dev Enables the usage of PRBMathSD59x18 for fixed point math.
+    using PRBMathSD59x18 for int256;
+
+    VRFCoordinatorV2Interface private COORDINATOR;
+
+    // @dev The Chainlink subscription id for the VRF request.
+    uint64 public clSubscriptionId;
+    /// @dev The amount of gas that is used to process and store each returned word.
+    uint32 clCallbackGasLimitPerWinner = 20000;
+    /// @dev The amount of confirmations the Oracle waits before responding.
+    uint16 clRequestConfirmations = 3;
+    /// @dev The gas lane used when responding to the VRF request.
+    bytes32 internal clKeyHash;
+    /// @dev fee paid in LINK to chainlink. 
+    uint256 internal clFee;
 
     /// @dev The address of the Prize Pool implementation that is used when opening a Jackpot.
     address public prizePoolImplementation;
+    /// @dev Existing interface to the Prize Pool implementation.
+    IJackpotPrizePool PRIZE_POOL;
 
-    mapping(bytes32 => address) public requestIdsToPrizePoolAddresses;
+    mapping(uint256 => address) public requestIdsToPrizePoolAddresses;
 
     event JackpotOpened(address prizePool);
 
     constructor(
           address _prizePoolImplementation
-        , address _coordinator
-        , address _linkToken
-        , bytes32 _keyHash
-        , uint256 _fee
+        , address _clCoordinator
+        , address _clLinkToken
+        , bytes32 _clKeyHash
+        , uint256 _clFee
     )
-        VRFConsumerBase(
-              _coordinator
-            , _linkToken
+        VRFConsumerBaseV2(
+              _clCoordinator
+            , _clLinkToken
         )
     {
         _setPrizePoolImplementation(_prizePoolImplementation); 
 
-        keyHash = _keyHash;
-        fee = _fee;
+        clKeyHash = _clKeyHash;
+        clFee = _clFee;
     }
 
     /**
@@ -58,12 +73,18 @@ contract JackpotComptroller is
     ) 
         internal 
     {
+        IJackpotPrizePool memory prizePool = IJackpotPrizePool(_prizePoolImplementation);
         require(
-              IJackpotPrizePool(_prizePoolImplementation).isJackpot()
+              prizePool.isJackpot()
             , "Jackpot::setPrizePoolImplementation: must be a Jackpot contract."
         );
 
+        /// @dev Save the address that is used for the implementation so that
+        ///      it can be used to create new Prize Pools.
         prizePoolImplementation = _prizePoolImplementation;
+
+        /// @dev Create an interface to the Prize Pool implementation.
+        PRIZE_POOL = prizePool;
     }
 
     /**
@@ -107,43 +128,22 @@ contract JackpotComptroller is
         emit JackpotOpened(address(prizePool));
     }
 
-    function _drawJackpot(
-
+    function drawJackpot(
+        uint256 _winners
     )
-        external 
-        returns (
-            bytes32 requestId
-        )
-    {
-        require(
-              LINK.balanceOf(address(this)) >= fee
-            , "Jackpot::drawJackpot: not enough LINK - fill contract with faucet"
-        );
-
-        requestId = requestRandomness(
-              keyHash
-            , fee
-        );
-
-        requestIdsToPrizePoolAddresses[requestId] = msg.sender;
-    }
-
-    function drawJackpot()
         external
         returns (
             bytes32 requestId
         )
     {
-        require(
-              LINK.balanceOf(address(this)) >= fee
-            , "Jackpot::requestRandomness: not enough LINK - fill contract with faucet"
-        );
-
         // TODO: Make sure the caller (the contract) is a PrizePool consumer deployed by this contract. 
 
-        requestId = requestRandomness(
-              keyHash
-            , fee
+        requestId = COORDINATOR.requestRandomWords(
+              clKeyHash
+            , clSubscriptionId
+            , clRequestConfirmations
+            , clCallbackGasLimitPerWinner * _winners
+            , _winners
         );
 
         requestIdsToPrizePoolAddresses[requestId] = msg.sender;

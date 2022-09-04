@@ -28,7 +28,7 @@ contract JackpotGreeks {
         JL.JackpotConstantSchema constants = jackpots[_jackpotId].constants;
 
         int256 quantity = int256(_quantity).fromInt();
-        int256 numSold = int256(currentId).fromInt();
+        // int256 numSold = int256(currentId).fromInt();
         int256 timeSinceStart = int256(block.timestamp).fromInt() - constants.startTime;
 
         int256 num1 = constants.priceInitial.mul(constants.scaleFactor.pow(numSold));

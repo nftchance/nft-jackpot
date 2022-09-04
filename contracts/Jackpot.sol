@@ -7,14 +7,15 @@ pragma solidity ^0.8.16;
  * @dev A contract that allows for the creation of a jackpot.
  */
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./JackpotComptroller.sol";
 
 contract Jackpot is
-    JackpotComptroller
+      JackpotComptroller
+    , Ownable
 {
     constructor(
           address _coordinator
@@ -50,14 +51,14 @@ contract Jackpot is
      * See {JackpotComptroller._openJackpot}.
      */
     function openJackpot(
-          JackpotConstantSchema _constants
-        , JackpotQualifierSchema[] calldata _qualifiers
+          JL.JackpotConstantSchema calldata _constants
+        , JL.JackpotQualifierSchema[] calldata _qualifiers
     ) 
         public 
         payable 
     { 
         require(
-              _constants.cancelTime > int256(block.timestamp).toInt()
+              _constants.cancelTime > int256(block.timestamp).fromInt()
             , "Jackpot::openJackpot: cancel time must be in the future."
         );
 
@@ -74,15 +75,6 @@ contract Jackpot is
         _openJackpot(
               _constants
             , _qualifiers
-            , _cancelTime
         );
-    }
-
-    function drawJackpot(
-        uint256 _jackpotId
-    ) 
-        public 
-    { 
-        _drawJackpot(_jackpotId);
     }
 }

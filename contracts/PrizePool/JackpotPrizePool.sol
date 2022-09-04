@@ -7,6 +7,7 @@ import { IJackpotPrizePool } from "./interfaces/IJackpotPrizePool.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import { JackpotGreeks } from "../JackpotGreeks.sol";
+import { JackpotFingerprint } from "../JackpotFingerprint.sol";
 
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
@@ -14,10 +15,10 @@ contract JackpotPrizePool is
       IJackpotPrizePool
     , Initializable
     , JackpotGreeks
+    , JackpotFingerprint
 {
     address public seeder;
     address public comptroller;
-
 
     JL.JackpotSchema public schema;
 
@@ -26,8 +27,6 @@ contract JackpotPrizePool is
     JL.CollateralSchema[] public collateral;
 
     JL.JackpotEntrySchema[] entries;
-
-    mapping(string => uint256) public tokenFingerprints;
 
     event JackpotCollateralized(JL.CollateralSchema[] collateral);
     event JackpotEntryAdded(JL.JackpotEntrySchema entry);
@@ -38,8 +37,6 @@ contract JackpotPrizePool is
               msg.sender == seeder
             , "JackpotPrizePool: onlySeeder"
         );
-        terminateJackpot();
-        
         _; 
     }
 
@@ -57,7 +54,7 @@ contract JackpotPrizePool is
         );
         _;
     }
-
+    
     function initialize(
           address _seeder        
         , address _comptroller
@@ -96,8 +93,8 @@ contract JackpotPrizePool is
     }
 
     function abortJackport() 
-        public 
         override
+        public 
         onlySeeder() 
         onlySeeded()
     { 
@@ -105,7 +102,21 @@ contract JackpotPrizePool is
         schema.status = JL.STATUS.ABORTED;
 
         /// @dev Transfer all the collateral back to the seeder.
-        // TODO: Implement the code for this
+        for(
+            uint256 i = 0;
+            i < collateral.length;
+            i++
+        ) {
+            JL.CollateralSchema memory collateralSchema = collateral[i];
+
+            /// @dev Transfer the collateral back to the seeder.
+            // TODO: For now we are assume that we are only handling ERC721s.
+            IERC721(collateralSchema.token).safeTransferFrom(
+                  address(this)
+                , seeder
+                , collateralSchema.tokenId
+            );
+        }
     }
 
     function _openEntry(
@@ -113,24 +124,91 @@ contract JackpotPrizePool is
         , uint256 _quantity
     ) 
         internal 
+        onlySeeded()
+        onlyVirginFingerprint(_fingerprint)
     {
+        uint256 price = _getPrice(_quantity);
 
+        /// @dev Confirm the minimum amount of funding for quanity was provided
+        ///      as there will be "price slippage" in ramps.
+        require(
+              msg.value >= price
+            , "JackpotPrizePool::_openEntry: The amount sent does not match the price." 
+        );
+        
+        /// @dev Get the closing index of the last token in the 
+        ///      pool if there is already an entry.
+        uint256 tail = _quantity;
+        if(entries.length > 0) {
+            tail += entries[entries.length - 1].tail;
+        }
+
+        /// @dev Add the entry to the entries array.
+        entries.push(
+            JL.JackpotEntrySchema({
+                  buyer: msg.sender
+                , quantity: _quantity
+                , value: price
+                , tail: tail
+            })
+        );
+
+        /// @dev Determine how much the buyer overpaid by.
+        uint256 refund = msg.value - price;
+
+        /// @dev Inline refund the buyer (no waiting or "i didnt get my refund").
+        (bool sent, ) = msg.sender.call{value: refund}("");
+        
+        /// @dev Proof the buyer received their refund without fail.
+        require(
+              sent
+            , "JackpotPrizePool::_openEntry: Failed to send refund."
+        );
+
+        /// @dev Emit the entry added event.
+        emit JackpotEntryAdded(entries[entries.length - 1]);
     }
 
-    function openEntryEmpty() 
+    /**
+     * @notice Allows a buyer to open an entry into the Jackpot.
+     * @param _quantity The amount of tickets to buy.
+     
+     * 
+     * Requirements:
+     * - The Jackpot must not have any qualifiers.
+     */
+    function openEntryEmpty(
+        uint256 _quantity
+    ) 
         public
-        onlySeeded() 
-    {}
+        payable
+    {
+        /// @dev Confirm that this whitelist is open entry.
+        require(
+              qualifiers.length == 0
+            , "JackpotPrizePool::openEntryEmpty: This Jackpot has qualifiers."
+        );
 
-    function openEntryBacked() 
+        /// @dev Create the entry using the wallet address as the fingerprint.
+        _openEntry(
+              bytes32(msg.sender)
+            , _quantity
+        );
+    }
+
+    function openEntryBacked(
+        CollateralSchema[] calldata _collateral
+    ) 
         public
+        payable
         onlySeeded() 
-    {}
+    { }
 
     function openEntrySignature() 
         public
+        payable
         onlySeeded() 
-    {}
+    { }
 
     function _drawJackpot()
         internal
@@ -161,9 +239,8 @@ contract JackpotPrizePool is
             , "JackpotPrizePool::drawJackpot: entry period not over."  
         );
 
-        /// @dev Confirm that the jackpot has not been canceled nor expired.
-        ///      cancelled == forcefully aborted
-        ///      expired == 'reserve' was not met while time < cancelTime
+        /// @dev Confirm that the jackpot has not expired due to not meeting the reserve
+        ///      of funds needed for the Jackpot to draw.
         /// TODO: Implement this code
 
         /// @dev Send the request for randomness and return the requestId.
