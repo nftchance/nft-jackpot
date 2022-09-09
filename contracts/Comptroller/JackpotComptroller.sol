@@ -8,8 +8,6 @@ import { JackpotRandomness } from "./JackpotRandomness.sol";
 /// @dev Definition dependencies.
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
-
-/// @dev Interfaces used in-processing.
 import { IJackpotPrizePool } from "../PrizePool/interfaces/IJackpotPrizePool.sol";
 
 /// @dev Helper libraries.
@@ -35,8 +33,8 @@ contract JackpotComptroller is
     /// @dev Existing interface to the Prize Pool implementation.
     IJackpotPrizePool PRIZE_POOL;
 
-    /// @dev Keeps records of which Jackpots have been deployed.
-    mapping(address => JackpotRegistration) public jackpotRegistrations;
+    /// @dev Mapping that allows access to the Jackpot drawing for a given address.
+    mapping(address => bool) public isPrizePool;
 
     /// @dev Announces that a new Jackpot has been opened.
     event JackpotOpened(address prizePool);
@@ -54,6 +52,14 @@ contract JackpotComptroller is
         )
     {
         _setPrizePoolImplementation(_prizePoolImplementation); 
+    }
+
+    modifier onlyPrizePool() {
+        require(
+              isPrizePool[msg.sender]
+            , "JackpotComptroller::onlyPrizePool: Sender is not a Prize Pool."
+        );
+        _;
     }
 
     /**
@@ -118,10 +124,7 @@ contract JackpotComptroller is
         );
 
         /// @dev Add this contract as an allowed caller of Randomness.
-        jackpotRegistrations[prizePoolAddress] = JackpotRegistration({
-              isJackpot: true
-            , randomnessRequestId: 0
-        });
+        isPrizePool[prizePoolAddress] = true;
 
         /// @dev Emit event with the address of the PrizePool. (Used for at-time indexing.)
         emit JackpotOpened(prizePoolAddress);
@@ -131,37 +134,12 @@ contract JackpotComptroller is
         uint32 _winners
     )
         external
+        onlyPrizePool()
     {
-        JackpotRegistration storage jackpotRegistration = jackpotRegistrations[msg.sender];
-
-        require(
-              jackpotRegistration.isJackpot
-            , "Jackpot::drawJackpot: must be a Jackpot contract."
-        );
-
-        require(
-              jackpotRegistration.randomnessRequestId == 0
-            , "Jackpot::drawJackpot: Jackpot has already been drawn."
-        );
-
         /// @dev Submit the request for randomness.
-        jackpotRegistration.randomnessRequestId = _drawJackpot(_winners);
-    }
+        uint256 requestId = _drawJackpot(_winners);
 
-    function fulfillRandomWords(
-          uint256 requestId
-        , uint256[] memory _randomWords
-    ) 
-        internal 
-        override
-    {
-        /// @dev Interface the relevant Prize Pool contract to run the processing.
-        IJackpotPrizePool prizePool = IJackpotPrizePool(requestIdsToPrizePoolAddresses[requestId]);
-
-        /// @dev Remove the request id from the list of pending VRF requests. 
-        delete requestIdsToPrizePoolAddresses[requestId];
-
-        /// @dev Run the processing of the Jackpot.
-        prizePool.processJackpot(_randomWords);
+        /// @dev Save the request id to the Prize Pool address.
+        requestIdsToPrizePoolAddresses[requestId] = msg.sender;
     }
 }

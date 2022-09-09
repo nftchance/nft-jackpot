@@ -7,6 +7,7 @@ import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/VRFConsumerBase
 
 /// @dev Interfaces used in-processing.
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import { IJackpotPrizePool } from "../PrizePool/interfaces/IJackpotPrizePool.sol";
 
 contract JackpotRandomness is
     VRFConsumerBaseV2
@@ -28,6 +29,10 @@ contract JackpotRandomness is
 
     /// @dev fee paid in LINK to chainlink. 
     uint256 internal clFee;
+
+
+
+    mapping(uint256 => address) public requestIdsToPrizePoolAddresses;
 
     constructor(
           address _clCoordinator
@@ -57,5 +62,23 @@ contract JackpotRandomness is
             , clCallbackGasLimitPerWinner * _winners
             , _winners
         );
+    }
+
+
+    function fulfillRandomWords(
+          uint256 requestId
+        , uint256[] memory _randomWords
+    ) 
+        internal 
+        override
+    {
+        /// @dev Interface the relevant Prize Pool contract to run the processing.
+        IJackpotPrizePool prizePool = IJackpotPrizePool(requestIdsToPrizePoolAddresses[requestId]);
+
+        /// @dev Remove the request id from the list of pending VRF requests. 
+        delete requestIdsToPrizePoolAddresses[requestId];
+
+        /// @dev Run the processing of the Jackpot.
+        prizePool.processJackpot(_randomWords);
     }
 }
