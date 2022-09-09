@@ -4,14 +4,7 @@ pragma solidity ^0.8.16;
 
 import { JackpotLibrary as JL } from "../../Library/JackpotLibrary.sol";
 
-interface IJackpotPrizePool { 
-    function isJackpot() 
-        external 
-        pure 
-        returns (
-            bool
-        );
-
+interface JackpotPrizePoolInterface { 
     function initialize(
               address _seeder        
             , address _comptroller
@@ -26,8 +19,14 @@ interface IJackpotPrizePool {
     ) 
         external;
 
-    function drawJackpot() 
+    function abortJackpot()
         external;
+
+    function drawJackpot() 
+        external
+        returns (
+            uint256 requestId
+        );
 
     function processJackpot(
         uint256[] calldata _randomWords

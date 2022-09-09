@@ -7,13 +7,17 @@ import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/VRFConsumerBase
 
 /// @dev Interfaces used in-processing.
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import { IJackpotPrizePool } from "../PrizePool/interfaces/IJackpotPrizePool.sol";
+import { LinkTokenInterface } from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+
+import { JackpotPrizePoolInterface } from "../PrizePool/interfaces/JackpotPrizePoolInterface.sol";
 
 contract JackpotRandomness is
     VRFConsumerBaseV2
 { 
     /// @dev The Chainlink coordinator address that generates randomness.
     VRFCoordinatorV2Interface private COORDINATOR;
+
+    LinkTokenInterface private LINK;
 
     // @dev The Chainlink subscription id for the VRF request.
     uint64 public clSubscriptionId;
@@ -27,24 +31,46 @@ contract JackpotRandomness is
     /// @dev The gas lane used when responding to the VRF request.
     bytes32 internal clKeyHash;
 
-    /// @dev fee paid in LINK to chainlink. 
-    uint256 internal clFee;
-
-
-
+    /// @dev Keeps tracking of which address a request id was for.
     mapping(uint256 => address) public requestIdsToPrizePoolAddresses;
 
     constructor(
           address _clCoordinator
+        , address _clLinkToken
         , bytes32 _clKeyHash
-        , uint256 _clFee
     )
         VRFConsumerBaseV2(
               _clCoordinator
         )
     {
         clKeyHash = _clKeyHash;
-        clFee = _clFee;
+
+        /// @dev Create existing connecting to the VRF interface.
+        COORDINATOR = VRFCoordinatorV2Interface(_clCoordinator); 
+
+        /// @dev Sets the subscription id for the VRF request.
+        clSubscriptionId = COORDINATOR.createSubscription();       
+
+        /// @dev Enable this contract to request random numbers.
+        COORDINATOR.addConsumer(
+              clSubscriptionId
+            , address(this)
+        );
+
+        /// @dev Create existing connecting to the LINK interface.
+        LINK = LinkTokenInterface(_clLinkToken);
+    }
+
+    function fundSubscription(
+        uint96 amount
+    ) 
+        external
+    {
+        LINK.transferAndCall(
+            address(COORDINATOR),
+            amount,
+            abi.encode(clSubscriptionId)
+        );
     }
 
     function _drawJackpot(
@@ -64,7 +90,6 @@ contract JackpotRandomness is
         );
     }
 
-
     function fulfillRandomWords(
           uint256 requestId
         , uint256[] memory _randomWords
@@ -73,7 +98,7 @@ contract JackpotRandomness is
         override
     {
         /// @dev Interface the relevant Prize Pool contract to run the processing.
-        IJackpotPrizePool prizePool = IJackpotPrizePool(requestIdsToPrizePoolAddresses[requestId]);
+        JackpotPrizePoolInterface prizePool = JackpotPrizePoolInterface(requestIdsToPrizePoolAddresses[requestId]);
 
         /// @dev Remove the request id from the list of pending VRF requests. 
         delete requestIdsToPrizePoolAddresses[requestId];

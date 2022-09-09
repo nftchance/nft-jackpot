@@ -3,18 +3,20 @@
 pragma solidity ^0.8.16;
 
 /// @dev Base layer dependencies.
+import { JackpotComptrollerInterface } from "./interfaces/JackpotComptrollerInterface.sol";
 import { JackpotRandomness } from "./JackpotRandomness.sol";
 
 /// @dev Definition dependencies.
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
-import { IJackpotPrizePool } from "../PrizePool/interfaces/IJackpotPrizePool.sol";
+import { JackpotPrizePoolInterface } from "../PrizePool/interfaces/JackpotPrizePoolInterface.sol";
 
 /// @dev Helper libraries.
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
 contract JackpotComptroller is
-    JackpotRandomness
+      JackpotComptrollerInterface
+    , JackpotRandomness
 {
     /// @dev Enables the usage of EIP-1167 Clones for Pool deployment.
     using Clones for address;
@@ -22,16 +24,10 @@ contract JackpotComptroller is
     /// @dev Enables the usage of PRBMathSD59x18 for fixed point math.
     using PRBMathSD59x18 for int256;
 
-    struct JackpotRegistration { 
-        bool isJackpot;
-        uint256 randomnessRequestId;
-    }
-
-    /// @dev The address of the Prize Pool implementation that is used when opening a Jackpot.
-    address public prizePoolImplementation;
-
     /// @dev Existing interface to the Prize Pool implementation.
-    IJackpotPrizePool PRIZE_POOL;
+    JackpotPrizePoolInterface PRIZE_POOL;
+
+    address private prizePoolImplementation;
 
     /// @dev Mapping that allows access to the Jackpot drawing for a given address.
     mapping(address => bool) public isPrizePool;
@@ -40,19 +36,16 @@ contract JackpotComptroller is
     event JackpotOpened(address prizePool);
 
     constructor(
-          address _prizePoolImplementation
-        , address _clCoordinator
+          address _clCoordinator
+        , address _clLinkToken
         , bytes32 _clKeyHash
-        , uint256 _clFee
     )
         JackpotRandomness(
               _clCoordinator
+            , _clLinkToken
             , _clKeyHash
-            , _clFee
         )
-    {
-        _setPrizePoolImplementation(_prizePoolImplementation); 
-    }
+    { }
 
     modifier onlyPrizePool() {
         require(
@@ -75,7 +68,7 @@ contract JackpotComptroller is
         internal 
     {
         /// @dev Confirm that the proper interface is setup.
-        IJackpotPrizePool prizePool = IJackpotPrizePool(_prizePoolImplementation);
+        JackpotPrizePoolInterface prizePool = JackpotPrizePoolInterface(_prizePoolImplementation);
 
         /// @dev Save the address that is used for the implementation so that
         ///      it can be used to create new Prize Pools.
@@ -106,13 +99,13 @@ contract JackpotComptroller is
         , JL.CollateralSchema[] calldata _collateral
     ) 
         internal
-        returns (IJackpotPrizePool prizePool)
+        returns (JackpotPrizePoolInterface prizePool)
     { 
         /// @dev Deploy EIP-1167 Minimal Proxy clone of PrizePool.
         address payable prizePoolAddress = payable(prizePoolImplementation.clone());
 
         /// @dev Interface with the newly created pool.
-        prizePool = IJackpotPrizePool(prizePoolAddress);
+        prizePool = JackpotPrizePoolInterface(prizePoolAddress);
 
         /// @dev Initialize PrizePool to the seeder with all needed information with the pool.
         prizePool.initialize(
@@ -133,11 +126,16 @@ contract JackpotComptroller is
     function drawJackpot(
         uint32 _winners
     )
+        override
         external
+        virtual 
         onlyPrizePool()
+        returns (
+            uint256 requestId
+        )
     {
         /// @dev Submit the request for randomness.
-        uint256 requestId = _drawJackpot(_winners);
+        requestId = _drawJackpot(_winners);
 
         /// @dev Save the request id to the Prize Pool address.
         requestIdsToPrizePoolAddresses[requestId] = msg.sender;

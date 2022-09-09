@@ -51,7 +51,7 @@ library JackpotLibrary {
         JackpotConstantSchema constants;
         JackpotQualifierSchema[] qualifiers;
         address prizePool;
-        uint256 winner;
+        uint256[] winners;
         int256 cancelTime;
     }
 }

@@ -9,10 +9,10 @@ contract JackpotFingerprint {
 
     int256 public decayRate; 
 
-    mapping(string => int256) public tokenFingerprints;
+    mapping(bytes32 => int256) public tokenFingerprints;
 
-    modifier onlyViriginFingerprint(
-        string memory _fingerprint
+    modifier onlyVirginFingerprint(
+        bytes32 _fingerprint
     ) { 
         require(
               _fingerprintDecay(_fingerprint) == 0
@@ -31,7 +31,7 @@ contract JackpotFingerprint {
     }
 
     function _setFingerprint(
-        string memory _fingerprint
+        bytes32 _fingerprint
     )
         internal
     {
@@ -44,7 +44,7 @@ contract JackpotFingerprint {
      * @return decay The decay of the fingerprint.
      */
     function _fingerprintDecay(
-        string memory _fingerprint
+        bytes32 _fingerprint
     )
         internal
         view

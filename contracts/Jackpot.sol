@@ -21,18 +21,19 @@ contract Jackpot is
     using PRBMathSD59x18 for int256;
 
     constructor(
-          address _coordinator
+          address _prizePoolImplementation
+        , address _coordinator
         , address _linkToken
         , bytes32 _keyHash
-        , uint256 _fee
     ) 
         JackpotComptroller(
               _coordinator
             , _linkToken
             , _keyHash
-            , _fee
         )
-    { }
+    { 
+        _setPrizePoolImplementation(_prizePoolImplementation);
+    }
 
     /**
      * See {JackpotComptroller._setPrizePoolImplementation}.
@@ -58,7 +59,8 @@ contract Jackpot is
         , JL.JackpotQualifierSchema[] calldata _qualifiers
         , JL.CollateralSchema[] calldata _collateral
     ) 
-        public 
+        external
+        virtual 
         payable 
     { 
         require(

@@ -2,21 +2,26 @@
 
 pragma solidity ^0.8.16;
 
-import { IJackpotPrizePool } from "./interfaces/IJackpotPrizePool.sol";
-
+import { JackpotPrizePoolInterface } from "./interfaces/JackpotPrizePoolInterface.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import { JackpotGreeks } from "../Comptroller/JackpotGreeks.sol";
 import { JackpotFingerprint } from "../Comptroller/JackpotFingerprint.sol";
+import { JackpotComptrollerInterface } from "../Comptroller/interfaces/JackpotComptrollerInterface.sol";
 
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
+import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
 contract JackpotPrizePool is 
-      IJackpotPrizePool
+      JackpotPrizePoolInterface
     , Initializable
     , JackpotGreeks
     , JackpotFingerprint
 {
+    using PRBMathSD59x18 for int256;
+
     address public seeder;
     address public comptroller;
 
@@ -58,9 +63,9 @@ contract JackpotPrizePool is
     function initialize(
           address _seeder        
         , address _comptroller
-        , JL.JackpotConstantSchema calldata _constants
-        , JL.JackpotQualifierSchema[] calldata _qualifiers
-        , JL.CollateralSchema[] calldata _collateral
+        , JL.JackpotConstantSchema memory _constants
+        , JL.JackpotQualifierSchema[] memory _qualifiers
+        , JL.CollateralSchema[] memory _collateral
     ) 
         public 
         initializer 
@@ -71,14 +76,17 @@ contract JackpotPrizePool is
 
         /// @dev Initializing the controlling variables of the pool.
         constants = _constants;
-        qualifiers = _qualifiers;
+        
+        for (uint256 i = 0; i < _qualifiers.length; i++) {
+            qualifiers.push(_qualifiers[i]);
+        }
 
         /// @dev Initialize the pool with the seeded collateral.
-        fundJackpot(_collateral); 
+        _fundJackpot(_collateral); 
     }
 
     function _fundJackpot(
-        JL.CollateralSchema[] calldata _collateral
+        JL.CollateralSchema[] memory _collateral
     ) 
         internal 
     {
@@ -88,7 +96,7 @@ contract JackpotPrizePool is
             IERC721(_collateral[i].token).safeTransferFrom(
                   msg.sender
                 , address(this)
-                , _collateral[i].tokenId
+                , _collateral[i].id
             );
 
             collateral.push(_collateral[i]);
@@ -101,17 +109,19 @@ contract JackpotPrizePool is
     function fundJackpot(
         JL.CollateralSchema[] calldata _collateral
     ) 
-        public 
         override 
+        external 
+        virtual
         onlySeeder() 
         onlySeeded()
     {
         _fundJackpot(_collateral);
     }
 
-    function abortJackport() 
+    function abortJackpot() 
         override
-        public 
+        external
+        virtual 
         onlySeeder() 
         onlySeeded()
     { 
@@ -131,7 +141,7 @@ contract JackpotPrizePool is
             IERC721(collateralSchema.token).safeTransferFrom(
                   address(this)
                 , seeder
-                , collateralSchema.tokenId
+                , collateralSchema.id
             );
         }
     }
@@ -208,13 +218,13 @@ contract JackpotPrizePool is
 
         /// @dev Create the entry using the wallet address as the fingerprint.
         _openEntry(
-              bytes32(msg.sender)
+              bytes32(abi.encode(msg.sender))
             , _quantity
         );
     }
 
     function openEntryBacked(
-        CollateralSchema[] calldata _collateral
+        JL.CollateralSchema[] calldata _collateral
     ) 
         public
         payable
@@ -230,22 +240,27 @@ contract JackpotPrizePool is
     function _drawJackpot()
         internal
         returns (
-            bytes32 requestId
+            uint256 requestId
         )
     {
         /// @dev Update the state of the Jackpot to drawing.
         schema.status = JL.STATUS.DRAWING;
 
         /// @dev Request a random number from Chainlink through the Comptroller.
-        return IComptroller(comptroller).drawJackpot();
+        return JackpotComptrollerInterface(comptroller).drawJackpot(
+            uint32(
+                entries[entries.length - 1].tail
+            )
+        );
     }
 
     function drawJackpot() 
         override 
-        public
+        external
+        virtual
         onlySeeded()
         returns (
-            bytes32 requestId
+            uint256 requestId
         )
     {
         /// @dev Confirm the end time of entry purchasing has passed which forcefully
@@ -268,17 +283,20 @@ contract JackpotPrizePool is
         public
         onlySeeder() 
         onlySeeded()
+        returns (
+            uint256 requestId
+        )
     {
         // TODO: Confirm minimum funding has been reached.
 
-        return _drawJackpot();
+        requestId = _drawJackpot();
     }
 
     function processJackpot(
         uint256[] calldata _randomWords
     )
-        public 
         override 
+        public 
         onlyComptroller() 
     {
         /// @dev Set the status of the Jackpot to completed.
