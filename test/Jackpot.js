@@ -61,21 +61,22 @@ describe("Jackpot", function () {
         console.log("✅ Chainlink contracts deployed")
 
         const masterPrizePool = await ethers.getContractFactory("JackpotPrizePool");
-        masterPrizePoolContract = await masterPrizePool.deploy(
-            seeder,
-            comptroller,
-            constants,
-            qualifiers,
-            collteral
-        );
+        masterPrizePoolContract = await masterPrizePool.deploy();
         masterPrizePoolContract = await masterPrizePoolContract.deployed();
+        masterPrizePoolAddress = masterPrizePoolContract.address;
 
         const Jackpot = await ethers.getContractFactory("Jackpot");
 
         // Gas lane to be used for Randomness responses
         const keyHash = networkConfig[chainId]['keyHash']
 
+        console.log(masterPrizePoolAddress)
+        console.log(vrfCoordinatorAddress)
+        console.log(linkAddress)
+        console.log(keyHash)
+
         jackpot = await Jackpot.deploy(
+            masterPrizePoolAddress,
             vrfCoordinatorAddress,
             linkAddress,
             keyHash

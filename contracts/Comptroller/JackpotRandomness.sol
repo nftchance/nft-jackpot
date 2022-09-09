@@ -49,13 +49,13 @@ contract JackpotRandomness is
         COORDINATOR = VRFCoordinatorV2Interface(_clCoordinator); 
 
         /// @dev Sets the subscription id for the VRF request.
-        clSubscriptionId = COORDINATOR.createSubscription();       
+        // clSubscriptionId = COORDINATOR.createSubscription();       
 
         /// @dev Enable this contract to request random numbers.
-        COORDINATOR.addConsumer(
-              clSubscriptionId
-            , address(this)
-        );
+        // COORDINATOR.addConsumer(
+        //       clSubscriptionId
+        //     , address(this)
+        // );
 
         /// @dev Create existing connecting to the LINK interface.
         LINK = LinkTokenInterface(_clLinkToken);
