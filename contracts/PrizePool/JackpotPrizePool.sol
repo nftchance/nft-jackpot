@@ -6,8 +6,8 @@ import { IJackpotPrizePool } from "./interfaces/IJackpotPrizePool.sol";
 
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import { JackpotGreeks } from "../JackpotGreeks.sol";
-import { JackpotFingerprint } from "../JackpotFingerprint.sol";
+import { JackpotGreeks } from "../Comptroller/JackpotGreeks.sol";
+import { JackpotFingerprint } from "../Comptroller/JackpotFingerprint.sol";
 
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 

@@ -11,7 +11,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "./JackpotComptroller.sol";
+import "./Comptroller/JackpotComptroller.sol";
 
 contract Jackpot is
       JackpotComptroller
