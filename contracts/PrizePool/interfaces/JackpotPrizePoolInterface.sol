@@ -12,7 +12,8 @@ interface JackpotPrizePoolInterface {
             , JL.JackpotQualifierSchema[] calldata _qualifiers
             , JL.CollateralSchema[] calldata _collateral
         ) 
-            external;
+            external
+            payable;
 
     function fundJackpot(
         JL.CollateralSchema[] calldata _collateral

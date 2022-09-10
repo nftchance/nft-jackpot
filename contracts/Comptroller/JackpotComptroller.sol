@@ -101,9 +101,6 @@ contract JackpotComptroller is
         , JL.CollateralSchema[] calldata _collateral
     ) 
         internal
-        returns (
-            address
-        )
     { 
         /// @dev Deploy EIP-1167 Minimal Proxy clone of PrizePool.
         address payable prizePoolAddress = payable(prizePoolImplementation.clone());
@@ -113,7 +110,7 @@ contract JackpotComptroller is
 
         /// @dev Initialize PrizePool to the seeder with all needed information with the pool
         ///      with payable call so that funds move to the newly created contract.
-        prizePool.initialize(
+        prizePool.initialize{value: msg.value}(
               msg.sender
             , address(this)
             , _constants
@@ -123,13 +120,16 @@ contract JackpotComptroller is
 
         /// @dev Add this contract as an allowed caller of Randomness.
         isPrizePool[prizePoolAddress] = true;
-
-        /// @dev Emit event with the address of the PrizePool. (Used for at-time indexing.)
-        emit JackpotOpened(prizePoolAddress);
-
-        return prizePoolAddress;
     }
 
+    /**
+     * @notice This function is called by the PrizePool to request a random number from Chainlink.
+     * @param _winners The number of winners to be drawn.
+     * @return requestId The ID of the Chainlink VRF request.
+     * @notice While this function may appear to be exposed to the public here, the callable 
+     *         implementation is only accessible from the PrizePool to minimize the amount of
+     *         data that needs to be stored.
+     */
     function drawJackpot(
         uint32 _winners
     )

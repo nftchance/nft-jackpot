@@ -68,8 +68,14 @@ contract JackpotPrizePool is
         , JL.CollateralSchema[] memory _collateral
     ) 
         public 
+        payable
         initializer 
     {
+        require(
+              seeder == address(0)
+            , "JackpotPrizePool::initialize: prize pool is already seeded."
+        );
+
         /// @dev Initialize Prize Pool access permissions.
         seeder = _seeder;
         comptroller = _comptroller;

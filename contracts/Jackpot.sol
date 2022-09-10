@@ -48,7 +48,6 @@ contract Jackpot is
         _setPrizePoolImplementation(_prizePoolImplementation);
     }
 
-
     /**
      * See {JackpotComptroller._openJackpot}.
      */
@@ -59,9 +58,6 @@ contract Jackpot is
     ) 
         public
         payable
-        returns ( 
-            address
-        )
     { 
         require(
               _constants.cancelTime > int256(block.timestamp).toInt()
@@ -83,7 +79,7 @@ contract Jackpot is
         //     , "Jackpot::openJackpot: insufficient collateral."
         // );
 
-        return _openJackpot(
+        _openJackpot(
               _constants
             , _qualifiers
             , _collateral
