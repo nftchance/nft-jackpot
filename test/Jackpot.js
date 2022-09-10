@@ -34,8 +34,8 @@ describe("Jackpot", function () {
                 log: true,
                 args: [linkToken, ethers.constants.AddressZero, linkETHPriceFeed],
                 contract:
-                  "contracts/test/VRFCoordinatorV2TestHelper.sol:VRFCoordinatorV2TestHelper",
-              });
+                    "contracts/test/VRFCoordinatorV2TestHelper.sol:VRFCoordinatorV2TestHelper",
+            });
 
             vrfCoordinatorAddress = vrfTx.address;
 
@@ -100,7 +100,7 @@ describe("Jackpot", function () {
         console.log("---------- ✅ Jackpot contracts deployed")
     })
 
-    describe('Master Prize Pool Deployment', async () => { 
+    describe('Master Prize Pool Deployment', async () => {
         it('Master Prize Pool contract deploys successfully.', async () => {
             const address = masterPrizePoolAddress
             assert.notEqual(address, '')
@@ -119,14 +119,14 @@ describe("Jackpot", function () {
             assert.notEqual(address, undefined)
         })
 
-        it("Can set prize pool implementation", async () => { 
+        it("Can set prize pool implementation", async () => {
             await jackpot.setPrizePoolImplementation(masterPrizePoolAddress);
             const prizePool = await jackpot.prizePoolImplementation();
             assert.equal(prizePool, masterPrizePoolAddress);
         })
 
         it("Cannot draw for non-initialized Prize Pool", async () => {
-            const quantity = ethers.BigNumber.from(1); 
+            const quantity = ethers.BigNumber.from(1);
             await jackpot.drawJackpot(quantity).should.be.revertedWith('JackpotComptroller::onlyPrizePool: Sender is not a Prize Pool.');
         })
 
@@ -149,8 +149,6 @@ describe("Jackpot", function () {
             const timestamp = block.timestamp;
             const cancelTime = timestamp + 3600;
 
-            console.log('CANCEL TIME', cancelTime)
-
             const constants = {
                 fingerprintDecayConstant: 0.0,
                 priceInitial: 0.0,
@@ -160,10 +158,10 @@ describe("Jackpot", function () {
                 cancelTime: `${cancelTime}`,
                 endTime: 0,
             }
-            await jackpot.openJackpot(constants, [], []).should.be.revertedWith('Jackpot::openJackpot: end time must be in the future.');            
+            await jackpot.openJackpot(constants, [], []).should.be.revertedWith('Jackpot::openJackpot: end time must be in the future.');
         })
 
-        it("Cannot open Prize Pool with no collateral", async () => { 
+        it("Cannot open Prize Pool with no collateral", async () => {
             // Get current block timestamp and add an hour 
             const block = await ethers.provider.getBlock();
             const timestamp = block.timestamp;
@@ -181,5 +179,30 @@ describe("Jackpot", function () {
             }
             await jackpot.openJackpot(constants, [], []).should.be.revertedWith('Jackpot::openJackpot: collateral must be provided.');
         })
+
+        it("Open Prize Pool with .02 ETH in collateral", async () => {
+            // Get current block timestamp and add an hour 
+            const block = await ethers.provider.getBlock();
+            const timestamp = block.timestamp;
+            const cancelTime = timestamp + 3600;
+            const endTime = timestamp + 7200;
+
+            const constants = {
+                fingerprintDecayConstant: 0.0,
+                priceInitial: 0.0,
+                priceScaleConstant: 0.0,
+                priceDecayConstant: 0.0,
+                startTime: 0,
+                cancelTime: `${cancelTime}`,
+                endTime: `${endTime}`,
+            }
+
+            jackpotAddress = await jackpot.callStatic.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
+            assert.notEqual(jackpotAddress, '')
+            assert.notEqual(jackpotAddress, 0x0);
+            assert.notEqual(jackpotAddress, null)
+            assert.notEqual(jackpotAddress, undefined)
+        })
+
     });
 });

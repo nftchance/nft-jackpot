@@ -57,9 +57,11 @@ contract Jackpot is
         , JL.JackpotQualifierSchema[] calldata _qualifiers
         , JL.CollateralSchema[] calldata _collateral
     ) 
-        external
-        virtual 
-        payable 
+        public
+        payable
+        returns ( 
+            address
+        )
     { 
         require(
               _constants.cancelTime > int256(block.timestamp).toInt()
@@ -81,10 +83,10 @@ contract Jackpot is
         //     , "Jackpot::openJackpot: insufficient collateral."
         // );
 
-        _openJackpot(
+        return _openJackpot(
               _constants
             , _qualifiers
             , _collateral
-        );
+        ); 
     }
 }

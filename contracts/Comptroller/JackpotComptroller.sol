@@ -14,6 +14,8 @@ import { JackpotPrizePoolInterface } from "../PrizePool/interfaces/JackpotPrizeP
 /// @dev Helper libraries.
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
+import "hardhat/console.sol";
+
 contract JackpotComptroller is
       JackpotComptrollerInterface
     , JackpotRandomness
@@ -99,15 +101,18 @@ contract JackpotComptroller is
         , JL.CollateralSchema[] calldata _collateral
     ) 
         internal
-        returns (JackpotPrizePoolInterface prizePool)
+        returns (
+            address
+        )
     { 
         /// @dev Deploy EIP-1167 Minimal Proxy clone of PrizePool.
         address payable prizePoolAddress = payable(prizePoolImplementation.clone());
 
         /// @dev Interface with the newly created pool.
-        prizePool = JackpotPrizePoolInterface(prizePoolAddress);
+        JackpotPrizePoolInterface prizePool = JackpotPrizePoolInterface(prizePoolAddress);
 
-        /// @dev Initialize PrizePool to the seeder with all needed information with the pool.
+        /// @dev Initialize PrizePool to the seeder with all needed information with the pool
+        ///      with payable call so that funds move to the newly created contract.
         prizePool.initialize(
               msg.sender
             , address(this)
@@ -121,6 +126,8 @@ contract JackpotComptroller is
 
         /// @dev Emit event with the address of the PrizePool. (Used for at-time indexing.)
         emit JackpotOpened(prizePoolAddress);
+
+        return prizePoolAddress;
     }
 
     function drawJackpot(
