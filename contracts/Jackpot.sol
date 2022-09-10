@@ -7,7 +7,6 @@ pragma solidity ^0.8.16;
  * @dev A contract that allows for the creation of a jackpot.
  */
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
@@ -15,7 +14,6 @@ import "./Comptroller/JackpotComptroller.sol";
 
 contract Jackpot is
       JackpotComptroller
-    , Ownable
 {
     /// @dev Enables the usage of PRBMathSD59x18 for fixed point math.
     using PRBMathSD59x18 for int256;

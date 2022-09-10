@@ -27,7 +27,7 @@ contract JackpotComptroller is
     /// @dev Existing interface to the Prize Pool implementation.
     JackpotPrizePoolInterface PRIZE_POOL;
 
-    address private prizePoolImplementation;
+    address public prizePoolImplementation;
 
     /// @dev Mapping that allows access to the Jackpot drawing for a given address.
     mapping(address => bool) public isPrizePool;

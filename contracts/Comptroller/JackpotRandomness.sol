@@ -4,6 +4,7 @@ pragma solidity ^0.8.16;
 
 /// @dev Base layer dependencies.
 import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @dev Interfaces used in-processing.
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
@@ -12,7 +13,8 @@ import { LinkTokenInterface } from "@chainlink/contracts/src/v0.8/interfaces/Lin
 import { JackpotPrizePoolInterface } from "../PrizePool/interfaces/JackpotPrizePoolInterface.sol";
 
 contract JackpotRandomness is
-    VRFConsumerBaseV2
+      VRFConsumerBaseV2
+    , Ownable
 { 
     /// @dev The Chainlink coordinator address that generates randomness.
     VRFCoordinatorV2Interface private COORDINATOR;
@@ -48,6 +50,9 @@ contract JackpotRandomness is
         /// @dev Create existing connecting to the VRF interface.
         COORDINATOR = VRFCoordinatorV2Interface(_clCoordinator); 
 
+        /// @dev Create existing connecting to the LINK interface.
+        LINK = LinkTokenInterface(_clLinkToken);
+
         /// @dev Sets the subscription id for the VRF request.
         // clSubscriptionId = COORDINATOR.createSubscription();       
 
@@ -56,9 +61,23 @@ contract JackpotRandomness is
         //       clSubscriptionId
         //     , address(this)
         // );
+    }
 
-        /// @dev Create existing connecting to the LINK interface.
-        LINK = LinkTokenInterface(_clLinkToken);
+    function createSubscriptionAndFund(
+        uint96 amount
+    ) 
+        external 
+    {
+        if (clSubscriptionId == 0) {
+            clSubscriptionId = COORDINATOR.createSubscription();
+            COORDINATOR.addConsumer(clSubscriptionId, address(this));
+        }
+        
+        LINK.transferAndCall(
+            address(COORDINATOR),
+            amount,
+            abi.encode(clSubscriptionId)
+        );
     }
 
     function fundSubscription(
@@ -71,6 +90,19 @@ contract JackpotRandomness is
             amount,
             abi.encode(clSubscriptionId)
         );
+    }
+
+    function cancelSubscription() 
+        external
+        virtual
+        onlyOwner()
+    {
+        COORDINATOR.cancelSubscription(
+              clSubscriptionId
+            , msg.sender
+        );
+
+        clSubscriptionId = 0;
     }
 
     function _drawJackpot(

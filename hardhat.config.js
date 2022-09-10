@@ -5,8 +5,6 @@ require("hardhat-gas-reporter");
 // make sure process env is ready
 require("dotenv").config();
 
-console.log('process.env.ALCHEMY_API_KEY', process.env.ALCHEMY_API_KEY)
-
 module.exports = {
   solidity: "0.8.16",
   defaultNetwork: "hardhat",

@@ -15,8 +15,8 @@ describe("Jackpot", function () {
         // Handle Chainlink contracts
         // Coordinator
         // Link Token
-        const network = await ethers.getDefaultProvider().getNetwork();
-        const chainId = network.chainId; 
+        const _network = await ethers.getDefaultProvider().getNetwork();
+        const chainId = _network.chainId;
 
         let vrfCoordinatorAddress;
 
@@ -24,17 +24,21 @@ describe("Jackpot", function () {
             vrfCoordinatorAddress = networkConfig[chainId]['vrfCoordinator']
             linkAddress = networkConfig[chainId]['linkToken']
         } else {
+            const { deployments, getNamedAccounts, network, ethers } = hre;
+            const { deploy, execute } = deployments;
+            const { deployer, linkToken, linkETHPriceFeed } = await getNamedAccounts();
+
             // If it's a local chain, deploy the contracts
             const vrfTx = await deploy("VRFCoordinatorV2TestHelper", {
                 from: deployer,
                 log: true,
-                args: [linkAddress, blockHashStore, linkEthFeed],
+                args: [linkToken, ethers.constants.AddressZero, linkETHPriceFeed],
                 contract:
-                    "contracts/test/VRFCoordinatorV2TestHelper.sol:VRFCoordinatorV2TestHelper",
-            });
+                  "contracts/test/VRFCoordinatorV2TestHelper.sol:VRFCoordinatorV2TestHelper",
+              });
 
             vrfCoordinatorAddress = vrfTx.address;
-            
+
             await execute(
                 "VRFCoordinatorV2TestHelper",
                 { from: deployer },
@@ -59,6 +63,20 @@ describe("Jackpot", function () {
         }
 
         console.log("✅ Chainlink contracts deployed")
+
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: [vrfCoordinatorAddress],
+        });
+
+        await (
+            await ethers.getSigner(owner.address)
+        ).sendTransaction({
+            to: vrfCoordinatorAddress,
+            value: ethers.utils.parseEther("100"),
+        });
+
+        console.log("✅ Chainlink impersonated")
 
         const masterPrizePool = await ethers.getContractFactory("JackpotPrizePool");
         masterPrizePoolContract = await masterPrizePool.deploy();
@@ -87,13 +105,29 @@ describe("Jackpot", function () {
         console.log("✅ Jackpot contracts deployed")
     })
 
-    describe('Deployment', async () => {
+    describe('Master Prize Pool Deployment', async () => { 
+        it('Master Prize Pool contract deploys successfully.', async () => {
+            const address = masterPrizePoolAddress
+            assert.notEqual(address, '')
+            assert.notEqual(address, 0x0)
+            assert.notEqual(address, null)
+            assert.notEqual(address, undefined)
+        })
+    });
+
+    describe('Jackpot Deployment', async () => {
         it('Jackpot contract deploys successfully.', async () => {
             const address = jackpot.address
             assert.notEqual(address, '')
             assert.notEqual(address, 0x0)
             assert.notEqual(address, null)
             assert.notEqual(address, undefined)
+        })
+
+        it("Can set prize pool implementation", async () => { 
+            await jackpot.setPrizePoolImplementation(masterPrizePoolAddress);
+            const prizePool = await jackpot.prizePoolImplementation();
+            assert.equal(prizePool, masterPrizePoolAddress);
         })
     });
 });
