@@ -78,7 +78,7 @@ describe("Jackpot", function () {
 
         console.log("---------- ✅ Chainlink impersonated")
 
-        const masterPrizePool = await ethers.getContractFactory("JackpotPrizePool");
+        masterPrizePool = await ethers.getContractFactory("JackpotPrizePool");
         masterPrizePoolContract = await masterPrizePool.deploy();
         masterPrizePoolContract = await masterPrizePoolContract.deployed();
         masterPrizePoolAddress = masterPrizePoolContract.address;
@@ -204,7 +204,8 @@ describe("Jackpot", function () {
             var tx = await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
             tx = await tx.wait()
 
-            const prizePool = jackpot.attach(tx.events[tx.events.length - 1].address)
+            const prizePool = masterPrizePool.attach(tx.events[tx.events.length - 1].address)
+            console.log(prizePool.address)
 
             assert.notEqual(prizePool.address, '')
             assert.notEqual(prizePool.address, 0x0)
@@ -218,6 +219,46 @@ describe("Jackpot", function () {
             // Confirm the prize pool has a balance of .02 ETH
             const prizePoolBalance = await ethers.provider.getBalance(prizePool.address);
             assert.equal(prizePoolBalance.toString(), ethers.utils.parseEther("0.02").toString());
+            
+            // Confirm that the prize pool address is not the comptroller
+            assert.notEqual(jackpot.address, prizePool.address);
+            assert.notEqual(masterPrizePoolAddress, prizePool.address);
         })
+    });
+
+    describe('Prize Pool Processing', async () => {
+        // Prepare a prize pool for processing
+        before(async () => {
+            console.log("---------- 📝 Preparing prize pool for processing")
+
+            // Get current block timestamp and add an hour 
+            const block = await ethers.provider.getBlock();
+            const timestamp = block.timestamp;
+            const cancelTime = timestamp + 3600;
+            const endTime = timestamp + 7200;
+
+            const constants = {
+                fingerprintDecayConstant: 0.0,
+                priceInitial: 0.0,
+                priceScaleConstant: 0.0,
+                priceDecayConstant: 0.0,
+                startTime: 0,
+                cancelTime: `${cancelTime}`,
+                endTime: `${endTime}`,
+            }
+
+            // Confirm the prize pool was made 
+            // prizePoolAddress = await jackpot.callStatic.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
+            // await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
+
+            var tx = await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
+            tx = await tx.wait()
+
+            newPrizePool = masterPrizePool.attach(tx.events[tx.events.length - 1].address)
+        });
+
+        it("Cannot draw for initialized Prize Pool because end time has not been reached", async () => {
+            await newPrizePool.drawJackpot().should.be.revertedWith("JackpotPrizePool::drawJackpot: entry period not over.");
+        });
     });
 });

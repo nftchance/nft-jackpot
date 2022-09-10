@@ -50,6 +50,8 @@ contract JackpotComptroller is
     { }
 
     modifier onlyPrizePool() {
+        console.log('inside the modifier', msg.sender);
+
         require(
               isPrizePool[msg.sender]
             , "JackpotComptroller::onlyPrizePool: Sender is not a Prize Pool."
@@ -117,6 +119,8 @@ contract JackpotComptroller is
             , _qualifiers
             , _collateral
         );
+
+        console.log(prizePoolAddress);
 
         /// @dev Add this contract as an allowed caller of Randomness.
         isPrizePool[prizePoolAddress] = true;
