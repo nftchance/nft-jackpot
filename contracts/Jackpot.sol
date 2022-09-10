@@ -62,13 +62,18 @@ contract Jackpot is
         payable 
     { 
         require(
-              _constants.cancelTime > int256(block.timestamp).fromInt()
+              _constants.cancelTime > int256(block.timestamp).toInt()
             , "Jackpot::openJackpot: cancel time must be in the future."
         );
 
         require(
               _constants.endTime > int256(block.timestamp).toInt()
             , "Jackpot::openJackpot: end time must be in the future."   
+        );
+
+        require(
+              msg.value > 0 || _collateral.length > 0
+            , "Jackpot::openJackpot: collateral must be provided."
         );
 
         // require(
