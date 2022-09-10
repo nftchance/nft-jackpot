@@ -14,8 +14,6 @@ import { JackpotPrizePoolInterface } from "../PrizePool/interfaces/JackpotPrizeP
 /// @dev Helper libraries.
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
-import "hardhat/console.sol";
-
 contract JackpotComptroller is
       JackpotComptrollerInterface
     , JackpotRandomness
@@ -50,8 +48,6 @@ contract JackpotComptroller is
     { }
 
     modifier onlyPrizePool() {
-        console.log('inside the modifier', msg.sender);
-
         require(
               isPrizePool[msg.sender]
             , "JackpotComptroller::onlyPrizePool: Sender is not a Prize Pool."
@@ -119,8 +115,6 @@ contract JackpotComptroller is
             , _qualifiers
             , _collateral
         );
-
-        console.log(prizePoolAddress);
 
         /// @dev Add this contract as an allowed caller of Randomness.
         isPrizePool[prizePoolAddress] = true;

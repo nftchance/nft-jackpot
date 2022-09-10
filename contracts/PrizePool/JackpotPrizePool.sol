@@ -14,8 +14,6 @@ import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol";
 import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import "hardhat/console.sol";
-
 contract JackpotPrizePool is 
       JackpotPrizePoolInterface
     , Initializable
@@ -254,8 +252,6 @@ contract JackpotPrizePool is
             uint256 requestId
         )
     {
-        console.log("Comptroller", comptroller);
-
         /// @dev Update the state of the Jackpot to drawing.
         schema.status = JL.STATUS.DRAWING;
 
@@ -276,8 +272,6 @@ contract JackpotPrizePool is
             uint256 requestId
         )
     {
-        console.log("HELLO?");
-
         /// @dev Confirm the end time of entry purchasing has passed which forcefully
         ///      keeps the Prize Pool moving forward. Once the endTime has passed,
         ///      the Jackpot will be drawn and it cannot be stopped.

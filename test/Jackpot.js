@@ -197,24 +197,15 @@ describe("Jackpot", function () {
                 endTime: `${endTime}`,
             }
 
-            // Confirm the prize pool was made 
-            // prizePoolAddress = await jackpot.callStatic.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
-            // await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
-
             var tx = await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
             tx = await tx.wait()
 
             const prizePool = masterPrizePool.attach(tx.events[tx.events.length - 1].address)
-            console.log(prizePool.address)
 
             assert.notEqual(prizePool.address, '')
             assert.notEqual(prizePool.address, 0x0)
             assert.notEqual(prizePool.address, null)
             assert.notEqual(prizePool.address, undefined)
-
-            // Confirm the constants were properly set
-            // const prizePoolConstants = await prizePool.getConstants();
-            // assert.equal(prizePoolConstants.fingerprintDecayConstant, constants.fingerprintDecayConstant);
 
             // Confirm the prize pool has a balance of .02 ETH
             const prizePoolBalance = await ethers.provider.getBalance(prizePool.address);
@@ -246,10 +237,6 @@ describe("Jackpot", function () {
                 cancelTime: `${cancelTime}`,
                 endTime: `${endTime}`,
             }
-
-            // Confirm the prize pool was made 
-            // prizePoolAddress = await jackpot.callStatic.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
-            // await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
 
             var tx = await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
             tx = await tx.wait()
