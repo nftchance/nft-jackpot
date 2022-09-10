@@ -47,6 +47,9 @@ contract JackpotComptroller is
         )
     { }
 
+    /**
+     * @dev Prevents anyone besides a prize pool from calling a function.
+     */
     modifier onlyPrizePool() {
         require(
               isPrizePool[msg.sender]

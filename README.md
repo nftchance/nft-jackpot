@@ -101,6 +101,30 @@ Some of the code is super broken right now. This repository started as an explor
 
 If you have any ideas, submit a PR. No promises I implement it, but whoever makes a genuine lottery system will see millions in action because random distribution is not so simple as *just gambling*.
 
+#### Properly Handling Data
+
+Within the lottery system there there is a ton of required data to ensure that everything can run properly. To do this though, a standard transaction could end up costing multiple hundreds of thousands in gas. Right now, seeding a contract using Metawin costs ~800k gas and ~230k gas to fund. A million in gas just to get a lottery started is super unacceptable. Unfortunately, this repository has even more data to handle however than MetaWin which means we are must get extremely tricky. Below I will go into that.
+
+To start there are a few rules that we can establish:
+
+* Most projects use `unit256` for timestamps however, they realistically only need to be `uint32` as those will expire in 2106. With this implementation, while the comptroller would no longer function (ideally ETH is better in 100 years), a new version could and should have been deployed by that time. So for Jackpot, `uint32` is used for timestamps and anyone that has a problem with that can enjoy the land of decentralists that have protocols too expensive to use.
+
+* When you have a lot of data pieces that are smaller than `uint256` you don't just need to lower the bit size of each variable within a struct. The data needs to be packed within that uint256 so that we only have to store one piece of data instead of relying on the compiler to do some black magic.
+
+##### Basic Bitwise Operations 
+
+* -- |= : This is the bitwise OR assignment operator. It’s used to combine two binary values (and we’re on a computer, so everything is binary) by saying “if any bit in either is 1, then that bit in the result is 1”.
+
+* -- << : This is the bit-shift (left) operator. It takes the bits of a number, and moves them to the left. So, creationTime << 160 takes the creation time, and moves it up to slots 160–207 in the resulting code. Combining bit-shift and bitwise OR assignment lets us build up the encoding.
+
+* -- >> : This is the bit-shift (right) operator. It works just like <<, but in the opposite direction. We can convert back from our encoded data using this. But, we also need:
+
+* -- uint256(uint48()) : This takes advantage of a feature of the solidity compiler. If you convert a uint256 to uint48, you just discard all bits higher than bit 48. This is perfect for our purposes, as we know the creationTime is 48 bits long, so this pulls out just the data we want.
+
+Now you’ve got your data storage, you likely need to pass the data between functions. Unless your application is as simple as described here, you’re going to run up against the stack limit of ~16 local variables. So you need to pass the data as a struct, in memory. This struct looks a little different from the one shown earlier:
+
+* To read this data, we need a struct that converts the struct to a struct with padded values. Meaning, we will need a `view` function that returns a version of the struct has `uint256` variants of each value. We can do this, because nothing is stored in storage we are just returning the struct through memory. Again, you cannot forget that we will always play against the maximum memory stack of ~16 values. There is nothing you do to avoid that one unfortunately.
+
 ## Running The Project
 
 Try running some of the following tasks:
