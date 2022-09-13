@@ -98,6 +98,12 @@ describe("Jackpot", function () {
         jackpot = await jackpot.deployed();
 
         console.log("---------- ✅ Jackpot contracts deployed")
+
+        // Get current block timestamp and add an hour 
+        block = await ethers.provider.getBlock();
+        timestamp = block.timestamp;
+        cancelTime = timestamp + 3600;
+        endTime = timestamp + 7200;
     })
 
     describe('Master Prize Pool Deployment', async () => {
@@ -119,141 +125,128 @@ describe("Jackpot", function () {
             assert.notEqual(address, undefined)
         })
 
-        it("Can set prize pool implementation", async () => {
+        it("Can set prize pool implementation.", async () => {
             await jackpot.setPrizePoolImplementation(masterPrizePoolAddress);
             const prizePool = await jackpot.prizePoolImplementation();
             assert.equal(prizePool, masterPrizePoolAddress);
         })
 
-        it("Cannot draw for non-initialized Prize Pool", async () => {
+        it("Cannot draw for non-initialized Prize Pool.", async () => {
             const quantity = ethers.BigNumber.from(1);
             await jackpot.drawJackpot(quantity).should.be.revertedWith('JackpotComptroller::onlyPrizePool: Sender is not a Prize Pool.');
         })
 
-        it("Cannot open Prize with no cancel time", async () => {
-            const constants = {
-                fingerprintDecayConstant: 0.0,
-                priceInitial: 0.0,
-                priceScaleConstant: 0.0,
-                priceDecayConstant: 0.0,
-                startTime: 0,
-                cancelTime: 0,
-                endTime: 0,
-            }
-            await jackpot.openJackpot(constants, [], []).should.be.revertedWith('Jackpot::openJackpot: cancel time must be in the future.');
-        })
-
-        it("Cannot open Prize Pool with no end time", async () => {
-            // Get current block timestamp and add an hour 
-            const block = await ethers.provider.getBlock();
-            const timestamp = block.timestamp;
-            const cancelTime = timestamp + 3600;
-
-            const constants = {
-                fingerprintDecayConstant: 0.0,
-                priceInitial: 0.0,
-                priceScaleConstant: 0.0,
-                priceDecayConstant: 0.0,
-                startTime: 0,
-                cancelTime: `${cancelTime}`,
-                endTime: 0,
-            }
-            await jackpot.openJackpot(constants, [], []).should.be.revertedWith('Jackpot::openJackpot: end time must be in the future.');
-        })
-
-        it("Cannot open Prize Pool with no collateral", async () => {
-            // Get current block timestamp and add an hour 
-            const block = await ethers.provider.getBlock();
-            const timestamp = block.timestamp;
-            const cancelTime = timestamp + 3600;
-            const endTime = timestamp + 7200;
-
-            const constants = {
-                fingerprintDecayConstant: 0.0,
-                priceInitial: 0.0,
-                priceScaleConstant: 0.0,
-                priceDecayConstant: 0.0,
-                startTime: 0,
-                cancelTime: `${cancelTime}`,
-                endTime: `${endTime}`,
-            }
-            await jackpot.openJackpot(constants, [], []).should.be.revertedWith('Jackpot::openJackpot: collateral must be provided.');
-        })
-
-        it("Open Prize Pool with .02 ETH in collateral", async () => {
-            // Get current block timestamp and add an hour 
-            const block = await ethers.provider.getBlock();
-            const timestamp = block.timestamp;
-            const cancelTime = timestamp + 3600;
-            const endTime = timestamp + 7200;
-
-            const constants = {
-                fingerprintDecayConstant: 0.0,
-                priceInitial: 0.0,
-                priceScaleConstant: 0.0,
-                priceDecayConstant: 0.0,
-                startTime: 0,
-                cancelTime: `${cancelTime}`,
-                endTime: `${endTime}`,
+        it("Cannot open Prize with no cancel time.", async () => {
+            const stateSchema = {
+                started: false,
+                status: 0,
+                requiredQualifiers: 0,
+                max: 0,
+                cancelTime: 0.0,
+                endTime: endTime,
+                fingerprintDecay: 0.0,
             }
 
-            var tx = await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
-            tx = await tx.wait()
+            const jackpotSchema = { 
+                price: 0.0,
+                state: 0.0,
+                qualifiers: [],
+                winners: [],
+            }
 
-            const prizePool = masterPrizePool.attach(tx.events[tx.events.length - 1].address)
-
-            assert.notEqual(prizePool.address, '')
-            assert.notEqual(prizePool.address, 0x0)
-            assert.notEqual(prizePool.address, null)
-            assert.notEqual(prizePool.address, undefined)
-
-            // Confirm the prize pool has a balance of .02 ETH
-            const prizePoolBalance = await ethers.provider.getBalance(prizePool.address);
-            assert.equal(prizePoolBalance.toString(), ethers.utils.parseEther("0.02").toString());
-            
-            // Confirm that the prize pool address is not the comptroller
-            assert.notEqual(jackpot.address, prizePool.address);
-            assert.notEqual(masterPrizePoolAddress, prizePool.address);
+            await jackpot.openJackpot(stateSchema, jackpotSchema).should.be.revertedWith('Jackpot::openJackpot: cancel time must be in the future.');
         })
+
+        it("Cannot open Prize Pool with no end time.", async () => {
+            const stateSchema = {
+                started: false,
+                status: 0,
+                requiredQualifiers: 0,
+                max: 0,
+                cancelTime: cancelTime,
+                endTime: 0.0,
+                fingerprintDecay: 0.0,
+            }
+
+            const jackpotSchema = { 
+                price: 0.0,
+                state: 0.0,
+                qualifiers: [],
+                winners: [],
+            }
+
+            await jackpot.openJackpot(stateSchema, jackpotSchema).should.be.revertedWith('Jackpot::openJackpot: end time must be in the future.');
+        })
+
+        it("Can open prize pool", async () => { 
+            const stateSchema = {
+                started: false,
+                status: 0,
+                requiredQualifiers: 0,
+                max: 0,
+                cancelTime: cancelTime,
+                endTime: endTime,
+                fingerprintDecay: 0.0,
+            }
+
+            const jackpotSchema = { 
+                price: 0.0,
+                state: 0.0,
+                qualifiers: [],
+                winners: [],
+            }
+
+            await jackpot.openJackpot(stateSchema, jackpotSchema);
+        });
     });
 
-    describe('Prize Pool Processing', async () => {
-        // Prepare a prize pool for processing
-        before(async () => {
-            console.log("---------- 📝 Preparing prize pool for processing")
+    // describe('Prize Pool Processing', async () => {
+    //     // Prepare a prize pool for processing
+    //     before(async () => {
+    //         console.log("---------- 📝 Preparing prize pool for processing")
 
-            // Get current block timestamp and add an hour 
-            const block = await ethers.provider.getBlock();
-            const timestamp = block.timestamp;
-            const cancelTime = timestamp + 3600;
-            const endTime = timestamp + 7200;
+    //         // Get current block timestamp and add an hour 
+    //         const block = await ethers.provider.getBlock();
+    //         const timestamp = block.timestamp;
+    //         const cancelTime = timestamp + 3600;
+    //         const endTime = timestamp + 7200;
 
-            const constants = {
-                fingerprintDecayConstant: 0,
-                price: 0,
-                started: 0,
-                cancelTime: `${cancelTime}`,
-                endTime: `${endTime}`,
-            }
+    //         const stateSchema = { 
+    //             started: false,
+    //             status: 0,
+    //             requiredQualifiers: 0,
+    //             max: 10,
+    //             address: masterPrizePool.address,
+    //             cancelTime: `${cancelTime}`,
+    //             endTime: `${endTime}`,
+    //             fingerPrintDecay: 0,
+    //         }
 
-            var tx = await jackpot.openJackpot(constants, [], [], { value: ethers.utils.parseEther("0.02") });
-            tx = await tx.wait()
+    //         const jackpotSchema = { 
+    //             price: 0,
+    //             state: 0,
+    //             qualifiers: [], 
+    //             winners: [],
+    //         }
 
-            newPrizePool = masterPrizePool.attach(tx.events[tx.events.length - 1].address)
-        });
+    //         var tx = await jackpot.openJackpot(stateSchema, jackpotSchema, { value: ethers.utils.parseEther("0.02") });
+    //         tx = await tx.wait()
 
-        it("Cannot draw for initialized Prize Pool because end time has not been reached", async () => {
-            await newPrizePool.drawJackpot().should.be.revertedWith("JackpotPrizePool::drawJackpot: entry period not over.");
-        });
+    //         newPrizePool = masterPrizePool.attach(tx.events[tx.events.length - 1].address)
+    //     });
 
-        it("Cannot buy entry before Prize Pool start time is reached", async () => { 
-            await newPrizePool.openEntryEmpty(1).should.be.revertedWith("JackpotPrizePool::_openEntry: Jackpot has not started yet.");
-        })
+    //     it("Cannot draw for initialized Prize Pool because end time has not been reached", async () => {
+    //         await newPrizePool.drawJackpot().should.be.revertedWith("JackpotPrizePool::drawJackpot: entry period not over.");
+    //     });
 
-        it("Can set start time of Prize Pool", async () => { });
+    //     it("Cannot buy entry before Prize Pool start time is reached", async () => { 
+    //         await newPrizePool.openEntryEmpty(1).should.be.revertedWith("JackpotPrizePool::_openEntry: Jackpot has not started yet.");
+    //     })
 
-        it("Cannot change the start time of the Prize Pool", async () => { });
+    //     it("Can set start time of Prize Pool", async () => { });
 
-        it("Can set start time of Prize Pool", async () => { });
-    });
+    //     it("Cannot change the start time of the Prize Pool", async () => { });
+
+    //     it("Can set start time of Prize Pool", async () => { });
+    // });
 });

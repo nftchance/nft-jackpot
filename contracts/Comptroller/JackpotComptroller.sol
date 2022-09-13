@@ -101,9 +101,8 @@ contract JackpotComptroller is
         /// @dev Interface with the newly created pool.
         JackpotPrizePoolInterface prizePool = JackpotPrizePoolInterface(prizePoolAddress);
 
-        /// @dev Initialize PrizePool to the seeder with all needed information with the pool
-        ///      with payable call so that funds move to the newly created contract.
-        prizePool.initialize{value: msg.value}(
+        /// @dev Deploy the clone contract to serve as the Prize Pool.
+        prizePool.initialize(
               msg.sender
             , address(this)
             , _stateSchema

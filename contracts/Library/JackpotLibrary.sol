@@ -22,11 +22,10 @@ library JackpotLibrary {
         STATUS status;                      // 002 (0: SEEDED, 1: ABORTED, 2: DRAWING, 3: ENDED)
         uint8 requiredQualifiers;           // 008 (number of qualifiers required to win) 
         uint8 max;                          // 008 (max number of entries each fingerprint can claim)
-        address prizePool;                  // 020 (address of the deployed prize pool)
         uint32 cancelTime;                  // 032 (time at which the Jackpot is cancelled)
         uint32 endTime;                     // 032 (time at which the Jackpot is ended and goes to drawing)
         uint32 fingerprintDecay;            // 032 (constant used to decay the fingerprint)
-    }                                       // 144 bits
+    }                                       // 128 bits
 
     /// @dev The less than ideal requirement of uint256 for the `aux` field is due to the fact that
     ///      ERC1155 tokens can have a quantity of 2^256 - 1. This is not a problem for ERC721 or

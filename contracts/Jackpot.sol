@@ -56,7 +56,6 @@ contract Jackpot is
         , JL.JackpotSchema calldata _jackpotSchema
     )
         public
-        payable
     { 
         uint32 now = uint32(block.timestamp);
 
