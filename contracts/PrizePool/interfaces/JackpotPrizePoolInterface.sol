@@ -8,8 +8,7 @@ interface JackpotPrizePoolInterface {
     function initialize(
               address _seeder        
             , address _comptroller
-            , JL.JackpotStateSchema calldata _stateSchema
-            , JL.JackpotSchema calldata _jackpotSchema
+            , JL.JackpotSchema memory _jackpotSchema
         ) 
             external
             payable;

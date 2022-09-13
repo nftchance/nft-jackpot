@@ -86,12 +86,10 @@ contract JackpotComptroller is
     /**
      * @dev Opens a new Jackpot contract, defines the constants, qualifiers and
      *      accepts the starting collateral.
-     * @param _stateSchema The state schema for the Jackpot.
      * @param _jackpotSchema The jackpot schema for the Jackpot.
      */ 
     function _openJackpot(
-          JL.JackpotStateSchema calldata _stateSchema
-        , JL.JackpotSchema calldata _jackpotSchema
+        JL.JackpotSchema memory _jackpotSchema
     ) 
         internal
     { 
@@ -105,7 +103,6 @@ contract JackpotComptroller is
         prizePool.initialize(
               msg.sender
             , address(this)
-            , _stateSchema
             , _jackpotSchema
         );
 

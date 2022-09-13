@@ -29,6 +29,8 @@ contract JackpotPrizePool is
 
     JL.JackpotSchema public schema;
 
+    uint256 public stateSchema;
+
     uint256 public prizeFunds;
 
     JL.JackpotEntrySchema[] entries;
@@ -69,8 +71,7 @@ contract JackpotPrizePool is
     function initialize(
           address _seeder        
         , address _comptroller
-        , JL.JackpotStateSchema memory _stateSchema
-        , JL.JackpotSchema memory _schema
+        , JL.JackpotSchema calldata _schema
     ) 
         public 
         payable
@@ -85,18 +86,8 @@ contract JackpotPrizePool is
         seeder = _seeder;
         comptroller = _comptroller;
 
-        /// @dev Initializing the controlling variables of the pool.
-        // constants = _constants;
-        
-        // for (uint256 i = 0; i < _qualifiers.length; i++) {
-        //     qualifiers.push(_qualifiers[i]);
-        // }
-
-        // /// @dev Initialize the pool with the seeded collateral.
-        // _fundJackpot(
-        //       msg.value
-        //     , _collateral
-        // ); 
+        /// @dev Initialize the Jackpot Schema.
+        schema = _schema;
     }
 
     function _fundJackpot(

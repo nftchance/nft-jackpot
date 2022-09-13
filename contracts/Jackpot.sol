@@ -48,30 +48,69 @@ contract Jackpot is
         _setPrizePoolImplementation(_prizePoolImplementation);
     }
 
+    function _packState(
+          uint256 _started
+        , uint256 _status
+        , uint256 _requiredQualifiers
+        , uint256 _max
+        , uint256 _cancelTime
+        , uint256 _endTime
+        , uint256 _fingerprintDecay
+    )
+        internal
+        pure
+        returns (
+            uint256 state
+        )
+    {
+        /// @dev Start 3 bits over to account for `started` and `status` both as zero.
+
+        state |= _requiredQualifiers << 3;
+        state |= _max << 11;
+        state |= _cancelTime << 19;
+        state |= _endTime << 51;
+        state |= _fingerprintDecay << 83;
+    }
+
     /**
      * See {JackpotComptroller._openJackpot}.
      */
     function openJackpot(
-          JL.JackpotStateSchema calldata _stateSchema
-        , JL.JackpotSchema calldata _jackpotSchema
+          uint256 _requiredQualifiers
+        , uint256 _max
+        , uint256 _cancelTime
+        , uint256 _endTime
+        , uint256 _fingerprintDecay        
+        , JL.JackpotSchema memory _jackpotSchema
     )
         public
     { 
         uint32 now = uint32(block.timestamp);
 
         require(
-              _stateSchema.cancelTime > now
+              _cancelTime > now
             , "Jackpot::openJackpot: cancel time must be in the future."
         );
 
         require(
-              _stateSchema.endTime > now
+              _endTime > now
             , "Jackpot::openJackpot: end time must be in the future."   
         );
 
+        uint256 stateSchema = _packState(
+              0
+            , 0                                     // Start every Jackpot in the seeded state.
+            , _requiredQualifiers
+            , _max
+            , _cancelTime
+            , _endTime
+            , _fingerprintDecay
+        );
+
+        _jackpotSchema.state = stateSchema;
+
         _openJackpot(
-              _stateSchema
-            , _jackpotSchema
+            _jackpotSchema
         ); 
     }
 }
