@@ -14,6 +14,8 @@ import { JackpotPrizePoolInterface } from "../PrizePool/interfaces/JackpotPrizeP
 /// @dev Helper libraries.
 import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol"; 
 
+import "hardhat/console.sol";
+
 contract JackpotComptroller is
       JackpotComptrollerInterface
     , JackpotRandomness
@@ -84,22 +86,12 @@ contract JackpotComptroller is
     /**
      * @dev Opens a new Jackpot contract, defines the constants, qualifiers and
      *      accepts the starting collateral.
-     * @param _constants The mathematical constants that control the Jackpot rules.
-     * @param _qualifiers An array of qualifying metrics that allow an individual to 
-     *                    buy or claim an entry for the Jackpot.
-     * @param _collateral An array of tokens and associated token ids / quantities that 
-     *                    being supplied as collateral for this Jackpot.
-     * @notice The `cancelTime` is the only parameter that is not immutable. It is used to
-     *         allow the seeder to close the Jackpot early if the minimum funding is not
-     *         reached.
-     * @notice No measure of on-chain indexing is in state to keep this as cheap as possible,
-     *         meaning there is no on-chain enumerable list of jackpots. Extreme measures are 
-     *         taken as the rest of the processing is extremely expensive.
+     * @param _stateSchema The state schema for the Jackpot.
+     * @param _jackpotSchema The jackpot schema for the Jackpot.
      */ 
     function _openJackpot(
-          JL.JackpotConstantSchema calldata _constants
-        , JL.JackpotQualifierSchema[] calldata _qualifiers
-        , JL.CollateralSchema[] calldata _collateral
+          JL.JackpotStateSchema calldata _stateSchema
+        , JL.JackpotSchema calldata _jackpotSchema
     ) 
         internal
     { 
@@ -114,9 +106,8 @@ contract JackpotComptroller is
         prizePool.initialize{value: msg.value}(
               msg.sender
             , address(this)
-            , _constants
-            , _qualifiers
-            , _collateral
+            , _stateSchema
+            , _jackpotSchema
         );
 
         /// @dev Add this contract as an allowed caller of Randomness.

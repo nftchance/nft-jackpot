@@ -8,17 +8,17 @@ interface JackpotPrizePoolInterface {
     function initialize(
               address _seeder        
             , address _comptroller
-            , JL.JackpotConstantSchema calldata _constants
-            , JL.JackpotQualifierSchema[] calldata _qualifiers
-            , JL.CollateralSchema[] calldata _collateral
+            , JL.JackpotStateSchema calldata _stateSchema
+            , JL.JackpotSchema calldata _jackpotSchema
         ) 
             external
             payable;
 
     function fundJackpot(
-        JL.CollateralSchema[] calldata _collateral
+        JL.JackpotTokenSchema[] calldata _collateral
     ) 
-        external;
+        external
+        payable;
 
     function abortJackpot()
         external;

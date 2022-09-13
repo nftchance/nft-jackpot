@@ -10,6 +10,7 @@
   "license": "MIT",
   "dependencies": {
     "@chainlink/contracts": "^0.4.1",
+    "@flipsidecrypto/sdk": "^1.1.0",
     "@nomicfoundation/hardhat-toolbox": "^1.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.1.0",
     "@openzeppelin/contracts": "^4.7.3",

@@ -52,37 +52,27 @@ contract Jackpot is
      * See {JackpotComptroller._openJackpot}.
      */
     function openJackpot(
-          JL.JackpotConstantSchema calldata _constants
-        , JL.JackpotQualifierSchema[] calldata _qualifiers
-        , JL.CollateralSchema[] calldata _collateral
-    ) 
+          JL.JackpotStateSchema calldata _stateSchema
+        , JL.JackpotSchema calldata _jackpotSchema
+    )
         public
         payable
     { 
+        uint32 now = uint32(block.timestamp);
+
         require(
-              _constants.cancelTime > int256(block.timestamp).toInt()
+              _stateSchema.cancelTime > now
             , "Jackpot::openJackpot: cancel time must be in the future."
         );
 
         require(
-              _constants.endTime > int256(block.timestamp).toInt()
+              _stateSchema.endTime > now
             , "Jackpot::openJackpot: end time must be in the future."   
         );
 
-        require(
-              msg.value > 0 || _collateral.length > 0
-            , "Jackpot::openJackpot: collateral must be provided."
-        );
-
-        // require(
-        //     msg.value >= _constants.startingCollateral
-        //     , "Jackpot::openJackpot: insufficient collateral."
-        // );
-
         _openJackpot(
-              _constants
-            , _qualifiers
-            , _collateral
+              _stateSchema
+            , _jackpotSchema
         ); 
     }
 }

@@ -111,6 +111,8 @@ To start there are a few rules that we can establish:
 
 * When you have a lot of data pieces that are smaller than `uint256` you don't just need to lower the bit size of each variable within a struct. The data needs to be packed within that uint256 so that we only have to store one piece of data instead of relying on the compiler to do some black magic.
 
+* Because there is so much data being processed within this, some "safety checks" have been forgone as no human in their right mind should be paying for transactions with "invalid" data. If someone does, there are mechanisms to recover, thus there are no guard rails on chain for Jackpot.
+
 ##### Basic Bitwise Operations 
 
 * -- |= : This is the bitwise OR assignment operator. It’s used to combine two binary values (and we’re on a computer, so everything is binary) by saying “if any bit in either is 1, then that bit in the result is 1”.

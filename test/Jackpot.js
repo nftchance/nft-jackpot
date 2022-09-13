@@ -229,11 +229,9 @@ describe("Jackpot", function () {
             const endTime = timestamp + 7200;
 
             const constants = {
-                fingerprintDecayConstant: 0.0,
-                priceInitial: 0.0,
-                priceScaleConstant: 0.0,
-                priceDecayConstant: 0.0,
-                startTime: 0,
+                fingerprintDecayConstant: 0,
+                price: 0,
+                started: 0,
                 cancelTime: `${cancelTime}`,
                 endTime: `${endTime}`,
             }
@@ -247,5 +245,15 @@ describe("Jackpot", function () {
         it("Cannot draw for initialized Prize Pool because end time has not been reached", async () => {
             await newPrizePool.drawJackpot().should.be.revertedWith("JackpotPrizePool::drawJackpot: entry period not over.");
         });
+
+        it("Cannot buy entry before Prize Pool start time is reached", async () => { 
+            await newPrizePool.openEntryEmpty(1).should.be.revertedWith("JackpotPrizePool::_openEntry: Jackpot has not started yet.");
+        })
+
+        it("Can set start time of Prize Pool", async () => { });
+
+        it("Cannot change the start time of the Prize Pool", async () => { });
+
+        it("Can set start time of Prize Pool", async () => { });
     });
 });

@@ -5,53 +5,54 @@ pragma solidity ^0.8.16;
 library JackpotLibrary { 
     ///@dev All the different status a raffle can have
     enum STATUS {
-          /// @dev The Jackpot is open for entries. (has provided collateral)
           SEEDED
-          /// @dev The seeder cancels the Jackpot if minimum funds are not met before the cancel time.
         , ABORTED 
-          /// @dev A request for randomness has been made.
-        , DRAWING
-          /// @dev The winners of a Prize Pool have been chosen.
-        , ENDED // the raffle is finished, and NFT and funds were transferred
+        , DRAWING                           // 
+        , ENDED                             // the raffle is finished, and NFT and funds were transferred
     }
 
-    struct JackpotConstantSchema {
-        /// @dev Prevent the same token from being used in quick succession.
-        int256 fingerprintDecayConstant;
-        /// @dev GDA implementation for seeder controlled entry pricing.
-        int256 priceInitial;
-        int256 priceScaleConstant;
-        int256 priceDecayConstant;
-        int256 startTime;
-        /// @dev Enabling permisionsless and non-oracle running jackpot distribution.
-        int256 cancelTime;
-        int256 endTime;
+    enum TOKEN_TYPE {
+          ERC20
+        , ERC721
+        , ERC1155
     }
 
-    struct JackpotQualifierSchema { 
-        address token;
-        uint256 quantity;
-        uint256 max;
-    }
+    struct JackpotStateSchema {             // Bitpacked into a single uint128 
+        bool started;                       // 001 (controls if entry opening has began)
+        STATUS status;                      // 002 (0: SEEDED, 1: ABORTED, 2: DRAWING, 3: ENDED)
+        uint8 requiredQualifiers;           // 008 (number of qualifiers required to win) 
+        uint8 max;                          // 008 (max number of entries each fingerprint can claim)
+        address prizePool;                  // 020 (address of the deployed prize pool)
+        uint32 cancelTime;                  // 032 (time at which the Jackpot is cancelled)
+        uint32 endTime;                     // 032 (time at which the Jackpot is ended and goes to drawing)
+        uint32 fingerprintDecay;            // 032 (constant used to decay the fingerprint)
+    }                                       // 144 bits
 
-    struct CollateralSchema {
-        address token; 
-        uint256 id;
-    }
+    /// @dev The less than ideal requirement of uint256 for the `aux` field is due to the fact that
+    ///      ERC1155 tokens can have a quantity of 2^256 - 1. This is not a problem for ERC721 or
+    ///      ERC20 tokens, but it is a problem for ERC1155 tokens. This is the only way to support
+    ///      all three token types in a single struct. 
+    struct JackpotTokenSchema { 
+        TOKEN_TYPE tokenType;               // 002 (0: ERC20, 1: ERC721, 2: ERC1155)
+        address token;                      // 020 (the address of the token to use for this qualifier)
+        uint256 id;                         // 256 (the ID of the token to use for this qualifier)
+        uint256 aux;                        // 256 (a trailing to identify `quantity` or `id`)
+    }                                       // 276 bits
+
+    struct JackpotPrizeSchema { 
+        uint256 value;                      // 256 (the amount of ETH associated to this prize)                              
+        JackpotTokenSchema[] collateral;    // 276 * n (the erc collateral to be used for this prize)
+    }                                       // 256 + 276 * n bits
 
     struct JackpotEntrySchema {
-        address buyer; 
-        uint256 quantity;
-        uint256 value;
-        uint256 tail;
-    }
+        address buyer;                      // 020 (the address of the buyer)
+        uint32 tail;                        // 032 (the id of the last entry that was purchased)
+    }                                       // 276 bits
 
     struct JackpotSchema { 
-        STATUS status;
-        JackpotConstantSchema constants;
-        JackpotQualifierSchema[] qualifiers;
-        address prizePool;
-        uint256[] winners;
-        int256 cancelTime;
+        uint256 price;                      // 256 (the price of an entry)
+        uint256 state;                      // 256 (bitpacked state of the Jackpot)
+        uint32[] qualifiers;                // 032 * n (the bitpacked qualifiers for this Jackpot)
+        uint32[] winners;                   // 032 * n (the winners of this Jackpot)
     }
 }

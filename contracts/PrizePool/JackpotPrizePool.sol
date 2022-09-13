@@ -14,6 +14,8 @@ import { JackpotLibrary as JL } from "../Library/JackpotLibrary.sol";
 import { PRBMathSD59x18 } from "@prb/math/contracts/PRBMathSD59x18.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+import "hardhat/console.sol";
+
 contract JackpotPrizePool is 
       JackpotPrizePoolInterface
     , Initializable
@@ -27,13 +29,14 @@ contract JackpotPrizePool is
 
     JL.JackpotSchema public schema;
 
-    JL.JackpotConstantSchema public constants;
-    JL.JackpotQualifierSchema[] public qualifiers;
-    JL.CollateralSchema[] public collateral;
+    uint256 public prizeFunds;
 
     JL.JackpotEntrySchema[] entries;
 
-    event JackpotCollateralized(JL.CollateralSchema[] collateral);
+    event JackpotCollateralized(
+          uint256 value
+        , JL.JackpotTokenSchema[] collateral
+    );
     event JackpotEntryAdded(JL.JackpotEntrySchema entry);
 
     modifier onlySeeder() {
@@ -56,19 +59,18 @@ contract JackpotPrizePool is
 
     modifier onlySeeded() {
         /// @dev Only the seeder can call this function.
-        require(
-              schema.status == JL.STATUS.SEEDED 
-            , "JackpotPrizePool::onlySeeded: Jackpot is in a state besides SEEDED."
-        );
+        // require(
+        //       schema.status == JL.STATUS.SEEDED 
+        //     , "JackpotPrizePool::onlySeeded: Jackpot is in a state besides SEEDED."
+        // );
         _;
     }
     
     function initialize(
           address _seeder        
         , address _comptroller
-        , JL.JackpotConstantSchema memory _constants
-        , JL.JackpotQualifierSchema[] memory _qualifiers
-        , JL.CollateralSchema[] memory _collateral
+        , JL.JackpotStateSchema memory _stateSchema
+        , JL.JackpotSchema memory _schema
     ) 
         public 
         payable
@@ -84,48 +86,35 @@ contract JackpotPrizePool is
         comptroller = _comptroller;
 
         /// @dev Initializing the controlling variables of the pool.
-        constants = _constants;
+        // constants = _constants;
         
-        for (uint256 i = 0; i < _qualifiers.length; i++) {
-            qualifiers.push(_qualifiers[i]);
-        }
+        // for (uint256 i = 0; i < _qualifiers.length; i++) {
+        //     qualifiers.push(_qualifiers[i]);
+        // }
 
-        /// @dev Initialize the pool with the seeded collateral.
-        _fundJackpot(_collateral); 
+        // /// @dev Initialize the pool with the seeded collateral.
+        // _fundJackpot(
+        //       msg.value
+        //     , _collateral
+        // ); 
     }
 
     function _fundJackpot(
-        JL.CollateralSchema[] memory _collateral
+        JL.JackpotTokenSchema[] memory _collateral
     ) 
         internal 
-    {
-        /// @dev Add the collateral to the pool.
-        for (uint256 i = 0; i < _collateral.length; i++) {
-            /// @dev Transfer the collateral to the pool.
-            IERC721(_collateral[i].token).safeTransferFrom(
-                  msg.sender
-                , address(this)
-                , _collateral[i].id
-            );
-
-            collateral.push(_collateral[i]);
-        }
-
-        /// @dev Emit the event that the pool has been collateralized.
-        emit JackpotCollateralized(_collateral);
-    }
+    { }
 
     function fundJackpot(
-        JL.CollateralSchema[] calldata _collateral
+        JL.JackpotTokenSchema[] calldata _collateral
     ) 
         override 
         external 
+        payable
         virtual
         onlySeeder() 
         onlySeeded()
-    {
-        _fundJackpot(_collateral);
-    }
+    { }
 
     function abortJackpot() 
         override
@@ -133,27 +122,7 @@ contract JackpotPrizePool is
         virtual 
         onlySeeder() 
         onlySeeded()
-    { 
-        /// @dev Update the state of the Jackpot to aborted.
-        schema.status = JL.STATUS.ABORTED;
-
-        /// @dev Transfer all the collateral back to the seeder.
-        for(
-            uint256 i = 0;
-            i < collateral.length;
-            i++
-        ) {
-            JL.CollateralSchema memory collateralSchema = collateral[i];
-
-            /// @dev Transfer the collateral back to the seeder.
-            // TODO: For now we are assume that we are only handling ERC721s.
-            IERC721(collateralSchema.token).safeTransferFrom(
-                  address(this)
-                , seeder
-                , collateralSchema.id
-            );
-        }
-    }
+    { }
 
     function _openEntry(
           bytes32 _fingerprint
@@ -162,48 +131,7 @@ contract JackpotPrizePool is
         internal 
         onlySeeded()
         onlyVirginFingerprint(_fingerprint)
-    {
-        uint256 price = _getPrice(_quantity);
-
-        /// @dev Confirm the minimum amount of funding for quanity was provided
-        ///      as there will be "price slippage" in ramps.
-        require(
-              msg.value >= price
-            , "JackpotPrizePool::_openEntry: The amount sent does not match the price." 
-        );
-        
-        /// @dev Get the closing index of the last token in the 
-        ///      pool if there is already an entry.
-        uint256 tail = _quantity;
-        if(entries.length > 0) {
-            tail += entries[entries.length - 1].tail;
-        }
-
-        /// @dev Add the entry to the entries array.
-        entries.push(
-            JL.JackpotEntrySchema({
-                  buyer: msg.sender
-                , quantity: _quantity
-                , value: price
-                , tail: tail
-            })
-        );
-
-        /// @dev Determine how much the buyer overpaid by.
-        uint256 refund = msg.value - price;
-
-        /// @dev Inline refund the buyer (no waiting or "i didnt get my refund").
-        (bool sent, ) = msg.sender.call{value: refund}("");
-        
-        /// @dev Proof the buyer received their refund without fail.
-        require(
-              sent
-            , "JackpotPrizePool::_openEntry: Failed to send refund."
-        );
-
-        /// @dev Emit the entry added event.
-        emit JackpotEntryAdded(entries[entries.length - 1]);
-    }
+    { }
 
     /**
      * @notice Allows a buyer to open an entry into the Jackpot.
@@ -221,7 +149,7 @@ contract JackpotPrizePool is
     {
         /// @dev Confirm that this whitelist is open entry.
         require(
-              qualifiers.length == 0
+              schema.qualifiers.length == 0
             , "JackpotPrizePool::openEntryEmpty: This Jackpot has qualifiers."
         );
 
@@ -233,7 +161,7 @@ contract JackpotPrizePool is
     }
 
     function openEntryBacked(
-        JL.CollateralSchema[] calldata _collateral
+        JL.JackpotTokenSchema[] calldata _collateral
     ) 
         public
         payable
@@ -253,7 +181,7 @@ contract JackpotPrizePool is
         )
     {
         /// @dev Update the state of the Jackpot to drawing.
-        schema.status = JL.STATUS.DRAWING;
+        // schema.status = JL.STATUS.DRAWING;
 
         /// @dev Request a random number from Chainlink through the Comptroller.
         return JackpotComptrollerInterface(comptroller).drawJackpot(
@@ -275,10 +203,10 @@ contract JackpotPrizePool is
         /// @dev Confirm the end time of entry purchasing has passed which forcefully
         ///      keeps the Prize Pool moving forward. Once the endTime has passed,
         ///      the Jackpot will be drawn and it cannot be stopped.
-        require(
-              constants.endTime <= int256(block.timestamp).toInt()
-            , "JackpotPrizePool::drawJackpot: entry period not over."  
-        );
+        // require(
+        //       constants.endTime <= int256(block.timestamp).toInt()
+        //     , "JackpotPrizePool::drawJackpot: entry period not over."  
+        // );
 
         /// @dev Confirm that the jackpot has not expired due to not meeting the reserve
         ///      of funds needed for the Jackpot to draw.
@@ -309,10 +237,10 @@ contract JackpotPrizePool is
         onlyComptroller() 
     {
         /// @dev Set the status of the Jackpot to completed.
-        schema.status = JL.STATUS.ENDED;
+        // schema.status = JL.STATUS.ENDED;
 
         /// @dev Save the winning entry indexes to the record!
-        schema.winners = _randomWords;
+        // schema.winners = _randomWords;
     }
 
     function claimJackpot(
@@ -321,16 +249,16 @@ contract JackpotPrizePool is
         public 
     {
         /// @dev Confirm the Jackpot has been completed.
-        require(
-              schema.status == JL.STATUS.ENDED
-            , "JackpotPrizePool::claimJackpot: Jackpot process has not ended."
-        );
+        // require(
+        //       schema.status == JL.STATUS.ENDED
+        //     , "JackpotPrizePool::claimJackpot: Jackpot process has not ended."
+        // );
 
-        /// @dev Confirm the user has a winning entry.
-        require(
-              entries[_entryId].buyer == msg.sender
-            , "JackpotPrizePool::claimJackpot: User does not have a winning entry."
-        );
+        // /// @dev Confirm the user has a winning entry.
+        // require(
+        //       entries[_entryId].buyer == msg.sender
+        //     , "JackpotPrizePool::claimJackpot: User does not have a winning entry."
+        // );
 
         /// @dev Transfer the collateral that this entry won to the user.
         // TODO: Implement the code here
@@ -341,23 +269,23 @@ contract JackpotPrizePool is
     ) 
         public 
     {
-        require (
-              schema.status == JL.STATUS.ABORTED
-            , "JackpotPrizePool::claimRefund: Jackpot has not been aborted."
-        );
+        // require (
+        //       schema.status == JL.STATUS.ABORTED
+        //     , "JackpotPrizePool::claimRefund: Jackpot has not been aborted."
+        // );
 
-        require (
-              msg.sender == entries[_entryId].buyer
-            , "JackpotPrizePool::claimRefund: Caller is not the buyer of this entry."
-        );
+        // require (
+        //       msg.sender == entries[_entryId].buyer
+        //     , "JackpotPrizePool::claimRefund: Caller is not the buyer of this entry."
+        // );
 
-        /// @dev Determine the amount of eth to refund for this entry.
-        uint256 owed = _getPrice(entries[_entryId].quantity);
+        // /// @dev Determine the amount of eth to refund for this entry.
+        // uint256 owed = _getPrice(entries[_entryId].quantity);
 
-        /// @dev Clear out the quantity of entries to prevent re-entrancy.
-        delete entries[_entryId].quantity;
+        // /// @dev Clear out the quantity of entries to prevent re-entrancy.
+        // delete entries[_entryId].quantity;
 
-        /// @dev Refund the amount of eth that the user has deposited.
-        (bool success, ) = msg.sender.call{value: owed}("");
+        // /// @dev Refund the amount of eth that the user has deposited.
+        // (bool success, ) = msg.sender.call{value: owed}("");
     }
 }
